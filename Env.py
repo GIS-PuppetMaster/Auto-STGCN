@@ -12,25 +12,27 @@ from layer_utils import *
 
 
 class GNNEnv(gym.Env):
-    def __init__(self, config, ctx):
+    def __init__(self, config, ctx, test=False):
         self.ctx = ctx
         self.config = config
+        self.test = test
         # parse config
-        self.epoch = config['epochs']
+        self.epochs = config['epochs']
         self.epsilon = config['epsilon']
         self.num_of_vertices = config['num_of_vertices']
         self.adj_filename = config['adj_filename']
         self.id_filename = config['id_filename']
-        self.time_series_filename = config['time_series_filename']
+        self.time_series_filename = config['graph_signal_matrix_filename']
+        self.pearsonr_adj_filename = config['pearsonr_adj_filename']
         self.time_limit = config['time_limit']
         self.dataset_name = os.path.split(self.adj_filename)[1].replace(".csv", "")
         self.n = config['n']
         # load data
         time_series_matrix = np.load(self.time_series_filename)['data'][:, :, 0]
-        adj_SIPM1 = SIPM1(time_series_matrix, self.num_of_vertices, self.epsilon)
-        adj_SIPM3 = SIPM3(self.adj_filename, self.num_of_vertices, id_filename=self.id_filename)
+        adj_SIPM1 = SIPM1(filepath=self.pearsonr_adj_filename, time_series_matrix=time_series_matrix,
+                          num_of_vertices=self.num_of_vertices, epsilon=self.epsilon)
         adj_SIPM4 = get_adjacency_matrix(self.adj_filename, self.num_of_vertices, id_filename=self.id_filename)
-        self.adj_SIPM = (adj_SIPM1, adj_SIPM3, adj_SIPM4)
+        self.adj_SIPM = (adj_SIPM1, adj_SIPM4)
 
         # action_space = discrete(0,n+2) which will be mapped into discrete(-1,0,...,n,n+1(train_state)) as the def in the paper
         self.action_space = spaces.MultiDiscrete([4, 3, 4, self.n - 1])
@@ -39,12 +41,13 @@ class GNNEnv(gym.Env):
 
         self.action_trajectory = []
         self.current_state_phase = -1
-        loaders = []
-        true_values = []
+
         self.transformer = MinMaxTransformer()
         self.data = {}
         self.batch_size_option = [32, 50, 64]
         for batch_size in self.batch_size_option:
+            loaders = []
+            true_values = []
             for idx, (x, y) in enumerate(generate_data(self.time_series_filename, transformer=self.transformer)):
                 y = y.squeeze(axis=-1)
                 print(x.shape, y.shape)
@@ -56,7 +59,9 @@ class GNNEnv(gym.Env):
                         label_name='label'
                     )
                 )
-                if idx != 0:
+                if idx == 0:
+                    self.training_samples = x.shape[0]
+                else:
                     true_values.append(y)
                 self.data[batch_size] = loaders
 
@@ -88,32 +93,47 @@ class GNNEnv(gym.Env):
             # training state(Terminal state)
             state = np.array([self.current_state_phase] + [-1, -1, -1, -1, -1])
             state.astype(np.float32)
-            self.action_trajectory.append(action)
+            # don't append training hyper parameters action into action_trajectory
+            # it's unnecessary and the model can't distinguish it from other action
+            # self.action_trajectory.append(action)
             self.current_state_phase += 1
             # run model and get reward
-            if action[1] == 1:
+            if action[0] == 1:
                 # LF1
                 loss = mx.gluon.loss.L2Loss()
             else:
                 loss = mx.gluon.loss.HuberLoss()
 
             # must set batch_size before init model
-            batch_size = self.batch_size_option[action[2] - 1]
+            batch_size = self.batch_size_option[action[1] - 1]
             self.config['batch_size'] = batch_size
             model = Model(self.action_trajectory, self.config, self.ctx, self.adj_SIPM)
+            model.initialize(ctx=self.ctx)
             lr_option = [1e-3, 7e-4, 1e-4]
             opt_option = ['rmsprop', 'adam', 'adam']
-            lr = lr_option[action[3] - 1]
-            if action[4] == 1:
-                lr_scheduler = FactorScheduler(self.epoch / 10, factor=0.7, base_lr=lr)
-                opt = mx.gluon.Trainer(model.collect_params(), opt_option[action[4] - 1],
-                                       {'learning_rate': lr, 'lr_scheduler': lr_scheduler})
+            lr = lr_option[action[2] - 1]
+            if action[3] == 1:
+                step = self.epochs / 10
+                if step < 1:
+                    step = 1
+                lr_scheduler = FactorScheduler(step, factor=0.7, base_lr=lr)
+                opt = mx.gluon.Trainer(model.collect_params(), opt_option[action[3] - 1],
+                                       {'lr_scheduler': lr_scheduler})
+            elif action[3] == 2:
+                opt = mx.gluon.Trainer(model.collect_params(), opt_option[action[3] - 1], {'learning_rate': lr})
             else:
-                opt = mx.gluon.Trainer(model.collect_params(), opt_option[action[4] - 1], {'learning_rate': lr})
+                global_train_steps = self.training_samples // batch_size + 1
+                max_update_factor = 1
+                lr_sch = mx.lr_scheduler.PolyScheduler(
+                    max_update=global_train_steps * self.epochs * max_update_factor,
+                    base_lr=lr,
+                    pwr=2,
+                    warmup_steps=global_train_steps
+                )
+                opt = mx.gluon.Trainer(model.collect_params(), opt_option[action[3] - 1], {'lr_scheduler': lr_sch})
             # train
             train_loader, val_loader, test_loader = self.data[batch_size]
-            for epoch in range(200):
-                start = time()
+            for epoch in range(self.config['epochs']):
                 loss_value = 0
                 train_num = 0
                 for X in train_loader:
@@ -125,6 +145,8 @@ class GNNEnv(gym.Env):
                         y = y.astype('float32')
                         output = model(X)
                         l = loss(output, y).sum()
+                    if self.test:
+                        return
                     l.backward()
                     opt.step(batch_size)
                     loss_value += l.asscalar()

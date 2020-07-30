@@ -2,6 +2,8 @@ import json
 from Env import GNNEnv
 import mxnet as mx
 import numpy as np
+import os
+os.environ["MXNET_CUDNN_AUTOTUNE_DEFAULT"] = "0"
 
 config_filename = "./Config/test_env.json"
 with open(config_filename, 'r') as f:
@@ -15,14 +17,36 @@ elif isinstance(config['ctx'], int):
 else:
     raise Exception("config_ctx error:" + str(config['ctx']))
 
-env = GNNEnv(config, ctx)
+env = GNNEnv(config, ctx, test=False)
+for j in range(10):
+    action_list = []
+    action_list.append([np.random.randint(low=1, high=3),
+                        np.random.randint(low=1, high=4),
+                        np.random.randint(low=1, high=4),
+                        np.random.randint(low=1, high=3)])
+    for i in range(2):
+        if i == 0:
+            pre_block = 0
+        else:
+            pre_block = np.random.randint(low=0, high=i)
+        action_list.append([np.random.randint(low=1, high=5),
+                            np.random.randint(low=1, high=4),
+                            np.random.randint(low=1, high=5),
+                            pre_block])
+    action_list.append([np.random.randint(low=1, high=3),
+                        np.random.randint(low=1, high=4),
+                        np.random.randint(low=1, high=4),
+                        np.random.randint(low=1, high=4)])
 
-action_list = np.array([
-    [1, 2, 1, 1],
-    [1, 2, 3, 0],
-    [2, 3, 1, 1],
-    [1, 2, 1, 1]
-])
+    action_list = [[2, 2, 3, 1],
 
-for action in action_list:
-    env.step(action)
+                   [3, 2, 4, 0],
+                   [2, 1, 1, 0],
+
+                   [2, 1, 2, 3]]
+    actions = np.array(action_list)
+    print("action:\n" + str(actions))
+    for action in actions:
+        env.step(action)
+    env.reset()
+    print(f"完成第{j + 1}次测试")

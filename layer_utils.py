@@ -170,7 +170,7 @@ class SIPM2(HybridBlock):
         return S_normalized
 
 
-def construct_adj(A, steps):
+def construct_adj(A):
     '''
     construct a bigger adjacency matrix using the given matrix
 
@@ -184,13 +184,27 @@ def construct_adj(A, steps):
     ----------
     new adjacency matrix: csr_matrix, shape is (N * steps, N * steps)
     '''
-    diag_matrix = nd.diag(nd.ones_like(A)[0, :])
-    zero_matrix = nd.zeros_like(A)
-    line1 = nd.concat(*[A, diag_matrix, zero_matrix], dim=1)
-    line2 = nd.concat(*[diag_matrix, A, diag_matrix], dim=1)
-    line3 = nd.concat(*[zero_matrix, diag_matrix, A], dim=1)
-    adj = nd.concat(*[line1, line2, line3], dim=0)
-    return adj
+    if len(A.shape) == 3:
+        adj = []
+        for i in range(A.shape[0]):
+            A_tmp = A[i,:,:]
+            diag_matrix = nd.diag(nd.ones_like(A_tmp)[0, :])
+            zero_matrix = nd.zeros_like(A_tmp)
+            A_adj = A_tmp + diag_matrix
+            line1 = nd.concat(*[A_adj, diag_matrix, zero_matrix], dim=1)
+            line2 = nd.concat(*[diag_matrix, A_adj, diag_matrix], dim=1)
+            line3 = nd.concat(*[zero_matrix, diag_matrix, A_adj], dim=1)
+            adj.append(nd.expand_dims(nd.concat(*[line1, line2, line3], dim=0), axis=0))
+        return nd.concat(*adj, dim=0)
+    else:
+        diag_matrix = nd.diag(nd.ones_like(A)[0, :])
+        zero_matrix = nd.zeros_like(A)
+        A_adj = A + diag_matrix
+        line1 = nd.concat(*[A_adj, diag_matrix, zero_matrix], dim=1)
+        line2 = nd.concat(*[diag_matrix, A_adj, diag_matrix], dim=1)
+        line3 = nd.concat(*[zero_matrix, diag_matrix, A_adj], dim=1)
+        adj = nd.concat(*[line1, line2, line3], dim=0)
+        return adj
 
 
 def get_adjacency_matrix(distance_df_filename, num_of_vertices,
@@ -686,8 +700,16 @@ class gcn_operation(HybridBlock):
     def forward(self, x, *args):
         adj = args[0]
         data = x
-        # shape is (3N, B, C)
-        data = nd.dot(adj, data)
+        if len(adj.shape)==3:
+            # (B,3N,C)
+            data = data.transpose((1,0,2))
+            # (B,3N,3N) x (B,3N,C) = (B,3N,C)
+            data = nd.batch_dot(adj,data)
+            # (3N,B,C)
+            data = data.transpose((1,0,2))
+        else:
+            # shape is (3N, B, C)
+            data = nd.dot(adj, data)
         data = self.FC(data)
         if self.activation == 'GLU':
             # data shape is (3N, B, 2C')
@@ -1084,10 +1106,12 @@ class FES4(HybridBlock):
                 )
                 self.register_child(self.stsgcl_layers[-1])
 
-    def forward(self, x, adj, *arg):
-        if adj.shape[0] == self.num_of_vertices:
-            adj = construct_adj(adj, 3)
-        elif adj.shape[0] != 3 * self.num_of_vertices:
+    def forward(self, x, adj, spatial_attention, *arg):
+        if spatial_attention is not None:
+            adj = adj * spatial_attention
+        if adj.shape[-1] == self.num_of_vertices:
+            adj = construct_adj(adj)
+        elif adj.shape[-1] != 3 * self.num_of_vertices:
             raise Exception(f"adj shape:{adj.shape} error")
         for idx, filters in enumerate(self.filter_list):
             x = self.stsgcl_layers[idx](x, adj)

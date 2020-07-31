@@ -160,7 +160,7 @@ class Model(HybridBlock):
                                             for i in cheb_polynomial(L_tilde, self.config['K'])]
                         data = layer(data, cheb_polynomials, self.laplace_weights)
                     elif isinstance(layer, FES4):
-                        data = layer(data, self.adj_choosed)
+                        data = layer(data, self.adj_choosed, self.laplace_weights)
         return data
 
     def hybrid_forward(self, F, x, *args, **kwargs):

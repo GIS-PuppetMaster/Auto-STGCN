@@ -3,6 +3,7 @@ from Env import GNNEnv
 import mxnet as mx
 import numpy as np
 import os
+
 os.environ["MXNET_CUDNN_AUTOTUNE_DEFAULT"] = "0"
 
 config_filename = "./Config/test_env.json"
@@ -17,7 +18,7 @@ elif isinstance(config['ctx'], int):
 else:
     raise Exception("config_ctx error:" + str(config['ctx']))
 
-env = GNNEnv(config, ctx, test=False)
+env = GNNEnv(config, ctx, test=True)
 for j in range(10):
     action_list = []
     action_list.append([np.random.randint(low=1, high=3),
@@ -38,12 +39,16 @@ for j in range(10):
                         np.random.randint(low=1, high=4),
                         np.random.randint(low=1, high=4)])
 
-    action_list = [[2, 2, 3, 1],
-
-                   [3, 2, 4, 0],
-                   [2, 1, 1, 0],
-
-                   [2, 1, 2, 3]]
+    # action_list = [[2, 2, 3, 1],
+    #
+    #                [3, 2, 4, 0],
+    #                [2, 1, 1, 0],
+    #
+    #                [2, 1, 2, 3]]
+    # action_list = [[2, 1, 3, 1],
+    #                [2, 1, 4, 0],
+    #                [4, 2, 2, 0],
+    #                [1, 3, 3, 2]]
     actions = np.array(action_list)
     print("action:\n" + str(actions))
     for action in actions:

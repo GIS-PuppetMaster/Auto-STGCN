@@ -1,4 +1,6 @@
 import json
+from time import time
+
 from Env import GNNEnv
 import mxnet as mx
 import numpy as np
@@ -18,40 +20,64 @@ elif isinstance(config['ctx'], int):
 else:
     raise Exception("config_ctx error:" + str(config['ctx']))
 
-env = GNNEnv(config, ctx, test=True)
+env = GNNEnv(config, ctx)
 for j in range(10):
     action_list = []
-    action_list.append([np.random.randint(low=1, high=3),
-                        np.random.randint(low=1, high=4),
-                        np.random.randint(low=1, high=4),
-                        np.random.randint(low=1, high=3)])
-    for i in range(2):
-        if i == 0:
-            pre_block = 0
-        else:
-            pre_block = np.random.randint(low=0, high=i)
-        action_list.append([np.random.randint(low=1, high=5),
+    if config['training_stage_last']:
+        action_list.append([np.random.randint(low=1, high=3),
                             np.random.randint(low=1, high=4),
-                            np.random.randint(low=1, high=5),
-                            pre_block])
-    action_list.append([np.random.randint(low=1, high=3),
-                        np.random.randint(low=1, high=4),
-                        np.random.randint(low=1, high=4),
-                        np.random.randint(low=1, high=4)])
-
-    # action_list = [[2, 2, 3, 1],
-    #
-    #                [3, 2, 4, 0],
-    #                [2, 1, 1, 0],
-    #
-    #                [2, 1, 2, 3]]
-    # action_list = [[2, 1, 3, 1],
-    #                [2, 1, 4, 0],
-    #                [4, 2, 2, 0],
-    #                [1, 3, 3, 2]]
+                            np.random.randint(low=1, high=4),
+                            np.random.randint(low=1, high=3),
+                            np.random.randint(low=0, high=2)])
+        for i in range(config['n']):
+            if i == 0:
+                pre_block = 0
+            else:
+                pre_block = np.random.randint(low=0, high=i)
+            action_list.append([np.random.randint(low=1, high=5),
+                                np.random.randint(low=1, high=4),
+                                np.random.randint(low=1, high=5),
+                                pre_block,
+                                np.random.randint(low=0, high=2)])
+        action_list.append([np.random.randint(low=1, high=3),
+                            np.random.randint(low=1, high=4),
+                            np.random.randint(low=1, high=4),
+                            np.random.randint(low=1, high=4),
+                            np.random.randint(low=0, high=2)])
+    else:
+        action_list.append([np.random.randint(low=1, high=3),
+                            np.random.randint(low=1, high=4),
+                            np.random.randint(low=1, high=4),
+                            np.random.randint(low=1, high=3),
+                            np.random.randint(low=0, high=2)])
+        action_list.append([np.random.randint(low=1, high=3),
+                            np.random.randint(low=1, high=4),
+                            np.random.randint(low=1, high=4),
+                            np.random.randint(low=1, high=4),
+                            np.random.randint(low=0, high=2)])
+        for i in range(config['n']):
+            if i == 0:
+                pre_block = 0
+            else:
+                pre_block = np.random.randint(low=0, high=i)
+            action_list.append([np.random.randint(low=1, high=5),
+                                np.random.randint(low=1, high=4),
+                                np.random.randint(low=1, high=5),
+                                pre_block,
+                                np.random.randint(low=0, high=2)])
+    action_list = [[1, 1, 1, 1],
+                   [1, 1, 1, 1],
+                   [1, 1, 1, 0],
+                   [-1, -1, -1, -1]]
     actions = np.array(action_list)
     print("action:\n" + str(actions))
+    start = time()
+    global reward
+    state = env.reset()
     for action in actions:
-        env.step(action)
-    env.reset()
-    print(f"完成第{j + 1}次测试")
+        state, reward, done, _ = env.step(action)
+        if done:
+            start = time() - start
+            break
+    print(
+        f"完成第{j + 1}次测试,用时:{start:.2f},epochs:{config['epochs']},平均每epochs用时:{start / config['epochs']:.2f},reward:{reward}")

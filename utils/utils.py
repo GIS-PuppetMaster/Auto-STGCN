@@ -16,15 +16,16 @@ class NoramlTransformer:
             mean = data.mean()
             std = data.std()
             self.x_transformer_info.append((mean, std))
-            return (data-mean)/std
+            return (data - mean) / std
         elif 'y' in kwargs.keys():
             data = kwargs['y']
             mean = data.mean()
             std = data.std()
             self.y_transformer_info.append((mean, std))
-            return (data-mean)/std
+            return (data - mean) / std
         else:
             raise Exception("Error transformer kwargs.key:{},which should be 'x' or 'y'".format(str(kwargs.keys())))
+
 
 class MinMaxTransformer:
     def __init__(self):
@@ -46,7 +47,7 @@ class MinMaxTransformer:
             data = kwargs['x']
             min = data.min()
             max = data.max()
-            self.x_transformer_info.append((min,max))
+            self.x_transformer_info.append((min, max))
             return (data - min) / (max - min)
         elif 'y' in kwargs.keys():
             data = kwargs['y']
@@ -56,6 +57,8 @@ class MinMaxTransformer:
             return (data - min) / (max - min)
         else:
             raise Exception("Error transformer kwargs.key:{},which should be 'x' or 'y'".format(str(kwargs.keys())))
+
+
 def get_adjacency_matrix(distance_df_filename, num_of_vertices,
                          type_='connectivity', id_filename=None):
     '''
@@ -205,31 +208,110 @@ def generate_seq(data, train_length, pred_length):
     return np.split(seq, 2, axis=1)
 
 
-def mask_np(array, null_val):
-    if np.isnan(null_val):
-        return (~np.isnan(null_val)).astype('float32')
+def generate_action_dict(n, training_stage_last):
+    action_dict = {}
+    if training_stage_last:
+        action_list = []
+        # input state (last state): state{-1}
+        for i in range(1, 3):
+            for j in range(1, 4):
+                for k in range(1, 4):
+                    for l in range(1, 3):
+                        action_list.append([i, j, k, l, 0])
+        action_dict[-1] = np.array(action_list)
+        # last state{0}-{n-1}
+        #      block{1}-{n}
+        action_list = []
+        for state in range(0, n):
+            action_list = []
+            for i in range(1, 5):
+                for j in range(1, 4):
+                    for k in range(1, 5):
+                        for l in range(0, state+1):
+                            if i == 0:
+                                action_list.append([i, j, k, l, 0])
+                            else:
+                                # may be terminal action
+                                for m in range(0, 2):
+                                    action_list.append([i, j, k, l, m])
+            action_dict[state] = np.array(action_list)
+        # training stage
+        # last state{n} or dqn gave terminal action
+        for i in range(1, 3):
+            for j in range(1, 4):
+                for k in range(1, 4):
+                    for l in range(1, 4):
+                        action_list.append([i, j, k, l, 0])
+        action_dict[n] = np.array(action_list)
     else:
-        return np.not_equal(array, null_val).astype('float32')
+        # last state{-2}
+        action_list = []
+        for i in range(1, 3):
+            for j in range(1, 4):
+                for k in range(1, 4):
+                    for l in range(1, 3):
+                        action_list.append([i, j, k, l])
+        action_dict[-2] = np.array(action_list)
+        # last state{-1}
+        # training stage
+        for i in range(1, 3):
+            for j in range(1, 4):
+                for k in range(1, 4):
+                    for l in range(1, 4):
+                        action_list.append([i, j, k, l])
+        action_dict[-1] = np.array(action_list)
+        # last state{0}-{n-1}
+        #      block{1}-{n}
+        for state in range(0, n):
+            action_list = []
+            # may be terminal action
+            if state!=0:
+                action_list.append([-1, -1, -1, -1])
+            for i in range(1, 5):
+                for j in range(1, 4):
+                    for k in range(1, 5):
+                        for l in range(0, state+1):
+                            action_list.append([i, j, k, l])
+            action_dict[state] = np.array(action_list)
+    return action_dict
 
-
-def masked_mape_np(y_true, y_pred, null_val=np.nan):
-    with np.errstate(divide='ignore', invalid='ignore'):
-        mask = mask_np(y_true, null_val)
-        mask /= mask.mean()
-        mape = np.abs((y_pred - y_true) / y_true)
-        mape = np.nan_to_num(mask * mape)
-        return np.mean(mape) * 100
-
-
-def masked_mse_np(y_true, y_pred, null_val=np.nan):
-    mask = mask_np(y_true, null_val)
-    mask /= mask.mean()
-    mse = (y_true - y_pred) ** 2
-    return np.mean(np.nan_to_num(mask * mse))
-
-
-def masked_mae_np(y_true, y_pred, null_val=np.nan):
-    mask = mask_np(y_true, null_val)
-    mask /= mask.mean()
-    mae = np.abs(y_true - y_pred)
-    return np.mean(np.nan_to_num(mask * mae))
+def generate_random_action(obs, n, training_stage_last):
+    last_state = obs[0]
+    if training_stage_last:
+        if last_state == -1:
+            return np.array([np.random.randint(low=1, high=3),
+                             np.random.randint(low=1, high=4),
+                             np.random.randint(low=1, high=4),
+                             np.random.randint(low=1, high=3),
+                             0])
+        elif last_state <= n - 1 and (obs[1:] != [-1, -1, -1, -1]).all():
+            return np.array([np.random.randint(low=1, high=5),
+                             np.random.randint(low=1, high=4),
+                             np.random.randint(low=1, high=5),
+                             np.random.randint(low=0, high=last_state + 1),
+                             np.random.randint(low=0, high=2)])
+        else:
+            return np.array([np.random.randint(low=1, high=3),
+                             np.random.randint(low=1, high=4),
+                             np.random.randint(low=1, high=4),
+                             np.random.randint(low=1, high=4),
+                             0])
+    else:
+        if last_state == -2:
+            return np.array([np.random.randint(low=1, high=3),
+                             np.random.randint(low=1, high=4),
+                             np.random.randint(low=1, high=4),
+                             np.random.randint(low=1, high=3)])
+        elif last_state == -1:
+            return np.array([np.random.randint(low=1, high=3),
+                             np.random.randint(low=1, high=4),
+                             np.random.randint(low=1, high=4),
+                             np.random.randint(low=1, high=4)])
+        else:
+            if np.random.randint(low=0, high=2) == 0 or last_state==0:
+                return np.array([np.random.randint(low=1, high=5),
+                                 np.random.randint(low=1, high=4),
+                                 np.random.randint(low=1, high=5),
+                                 np.random.randint(low=0, high=last_state + 1)])
+            else:
+                return np.array([-1, -1, -1, -1])

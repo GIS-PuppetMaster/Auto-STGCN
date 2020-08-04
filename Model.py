@@ -1,7 +1,4 @@
-import mxnet as mx
-from mxnet.gluon.block import HybridBlock
-import mxnet.ndarray as nd
-from layer_utils import *
+from utils.layer_utils import *
 
 
 class Model(HybridBlock):

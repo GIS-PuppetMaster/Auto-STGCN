@@ -20,7 +20,7 @@ if __name__ == "__main__":
                     ('PEMS07','individual_GLU_mask_emb.json'),
                     ('PEMS08','individual_GLU_mask_emb.json')]
     for dataset, filename in dataset_list:
-        config_filename = os.path.join("./Config", dataset, filename)
+        config_filename = os.path.join("../Config", dataset, filename)
         with open(config_filename, 'r') as f:
             config = json.loads(f.read())
         print(json.dumps(config, sort_keys=True, indent=4))
@@ -31,4 +31,4 @@ if __name__ == "__main__":
         time_series_filename = config['graph_signal_matrix_filename']
         time_series_matrix = np.load(time_series_filename)['data'][:, :, 0]
         adj = SIPM1(time_series_matrix,num_of_vertices,epsilon)
-        np.savez(os.path.join('./data',dataset,dataset+'_pearsonr.npz'), adj)
+        np.savez(os.path.join('../data', dataset, dataset + '_pearsonr.npz'), adj)

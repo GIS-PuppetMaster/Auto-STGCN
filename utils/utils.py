@@ -221,13 +221,12 @@ def generate_action_dict(n, training_stage_last):
         action_dict[-1] = np.array(action_list)
         # last state{0}-{n-1}
         #      block{1}-{n}
-        action_list = []
         for state in range(0, n):
             action_list = []
             for i in range(1, 5):
                 for j in range(1, 4):
                     for k in range(1, 5):
-                        for l in range(0, state+1):
+                        for l in range(0, state + 1):
                             if i == 0:
                                 action_list.append([i, j, k, l, 0])
                             else:
@@ -237,6 +236,7 @@ def generate_action_dict(n, training_stage_last):
             action_dict[state] = np.array(action_list)
         # training stage
         # last state{n} or dqn gave terminal action
+        action_list = []
         for i in range(1, 3):
             for j in range(1, 4):
                 for k in range(1, 4):
@@ -254,6 +254,7 @@ def generate_action_dict(n, training_stage_last):
         action_dict[-2] = np.array(action_list)
         # last state{-1}
         # training stage
+        action_list = []
         for i in range(1, 3):
             for j in range(1, 4):
                 for k in range(1, 4):
@@ -265,26 +266,27 @@ def generate_action_dict(n, training_stage_last):
         for state in range(0, n):
             action_list = []
             # may be terminal action
-            if state!=0:
+            if state != 0:
                 action_list.append([-1, -1, -1, -1])
             for i in range(1, 5):
                 for j in range(1, 4):
                     for k in range(1, 5):
-                        for l in range(0, state+1):
+                        for l in range(0, state + 1):
                             action_list.append([i, j, k, l])
             action_dict[state] = np.array(action_list)
     return action_dict
 
+
 def generate_random_action(obs, n, training_stage_last):
-    last_state = obs[0]
     if training_stage_last:
+        last_state = obs[-1, 0]
         if last_state == -1:
             return np.array([np.random.randint(low=1, high=3),
                              np.random.randint(low=1, high=4),
                              np.random.randint(low=1, high=4),
                              np.random.randint(low=1, high=3),
                              0])
-        elif last_state <= n - 1 and (obs[1:] != [-1, -1, -1, -1]).all():
+        elif last_state <= n - 1 and (obs[-1, 1:] != [-1, -1, -1, -1]).all():
             return np.array([np.random.randint(low=1, high=5),
                              np.random.randint(low=1, high=4),
                              np.random.randint(low=1, high=5),
@@ -297,6 +299,7 @@ def generate_random_action(obs, n, training_stage_last):
                              np.random.randint(low=1, high=4),
                              0])
     else:
+        last_state = obs[0]
         if last_state == -2:
             return np.array([np.random.randint(low=1, high=3),
                              np.random.randint(low=1, high=4),
@@ -308,7 +311,7 @@ def generate_random_action(obs, n, training_stage_last):
                              np.random.randint(low=1, high=4),
                              np.random.randint(low=1, high=4)])
         else:
-            if np.random.randint(low=0, high=2) == 0 or last_state==0:
+            if np.random.randint(low=0, high=2) == 0 or last_state == 0:
                 return np.array([np.random.randint(low=1, high=5),
                                  np.random.randint(low=1, high=4),
                                  np.random.randint(low=1, high=5),

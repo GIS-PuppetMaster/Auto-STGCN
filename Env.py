@@ -44,6 +44,7 @@ class GNNEnv(gym.Env):
         # doesn't contains training stage action
         self.action_trajectory = []
         self.actions = []
+        self.state_trajectory = []
         if self.training_stage_last:
             self.current_state_phase = 0
         else:
@@ -85,7 +86,8 @@ class GNNEnv(gym.Env):
                     state.astype(np.float32)
                     self.action_trajectory.append(action)
                     self.current_state_phase += 1
-                    return state, None, False, {}
+                    self.state_trajectory.append(state.tolist())
+                    return np.array(self.state_trajectory), None, False, {}
                 elif self.current_state_phase <= self.n:
                     # include state{1} and state{i} if next state is not training state
                     if (action == np.array([-1, -1, -1, -1, -1])).all() or self.current_state_phase == self.n:
@@ -95,7 +97,8 @@ class GNNEnv(gym.Env):
                         self.action_trajectory.append(action)
                         self.current_state_phase += 1
                         self.training_stage = True
-                        return state, None, False, {}
+                        self.state_trajectory.append(state.tolist())
+                        return np.array(self.state_trajectory), None, False, {}
                     else:
                         # state{1}..{n-1} and self.training_stage = False
                         # next state is not training state
@@ -104,7 +107,8 @@ class GNNEnv(gym.Env):
                         state.astype(np.float32)
                         self.action_trajectory.append(action)
                         self.current_state_phase += 1
-                        return state, None, False, {}
+                        self.state_trajectory.append(state.tolist())
+                        return np.array(self.state_trajectory), None, False, {}
             else:
                 # training state(Terminal state)
                 # state{n+1}
@@ -116,7 +120,8 @@ class GNNEnv(gym.Env):
                 self.current_state_phase += 1
                 # run model and get reward
                 reward = self.train_model(action)
-                return state, reward, True, {}
+                self.state_trajectory.append(state.tolist())
+                return np.array(self.state_trajectory), reward, True, {}
         else:
             #                                                   end ST-block, need training
             if self.current_state_phase <= self.n - 1 and not (
@@ -149,13 +154,18 @@ class GNNEnv(gym.Env):
     def reset(self):
         self.action_trajectory = []
         self.actions = []
+        self.state_trajectory = []
         if self.training_stage_last:
             self.current_state_phase = 0
         else:
             self.current_state_phase = -1
         self.training_stage = False
         self.training_stage_action = None
-        return np.array([-1 for _ in range(5)])
+        if self.training_stage_last:
+            self.state_trajectory.append([-1 for _ in range(5)])
+            return np.array(self.state_trajectory)
+        else:
+            return np.array([-2, -1, -1, -1, -1])
 
     def train_model(self, action):
         # action belongs to stage4: Training stage
@@ -207,14 +217,14 @@ class GNNEnv(gym.Env):
                     with autograd.record():
                         y = y.astype('float32')
                         output = model(X)
-                        l = loss(output, y).sum()
+                        l = loss(output, y)
                     if self.test:
                         return
                     l.backward()
                     opt.step(batch_size)
-                    loss_value += l.asscalar()
+                    loss_value += l.mean().asscalar()
                 train_loader.reset()
-                print(f"    epoch:{epoch} ,normal_loss:{loss_value/batch_size:.6f}")
+                print(f"    epoch:{epoch} ,normal_loss:{loss_value / batch_size:.6f}")
             # eval
             eval_loss_value = 0
             eval_loss_value_raw = 0
@@ -227,7 +237,7 @@ class GNNEnv(gym.Env):
                 X, y = X.as_in_context(self.ctx), y.as_in_context(self.ctx)
                 y = y.astype('float32')
                 output = model(X)
-                eval_loss_value_raw += loss(output, y).sum().asscalar()
+                eval_loss_value_raw += loss(output, y).mean().asscalar()
                 # 反标准化
                 eval_y_min = self.transformer.y_data_set_min
                 eval_y_max = self.transformer.y_data_set_max
@@ -235,7 +245,7 @@ class GNNEnv(gym.Env):
                 y = y * (self.transformer.y_transformer_info[1][1] - self.transformer.y_transformer_info[1][
                     0]) + \
                     self.transformer.y_transformer_info[1][0]
-                eval_loss_value += loss(output, y).sum().asscalar()
+                eval_loss_value += loss(output, y).mean().asscalar()
             eval_loss_value /= eval_batch_num
             val_time = time() - val_time
             val_loader.reset()

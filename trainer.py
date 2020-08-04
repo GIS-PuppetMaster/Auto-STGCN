@@ -109,10 +109,10 @@ def train_DQN(config):
             if np.random.random() >= exploration:
                 action, _ = Q_net(obs)
                 action = np.squeeze(action)
-                print(f"    action:{action}    Qnet")
+                print(f"    state:{obs}, action:{action}    Qnet")
             else:
                 action = generate_random_action(obs, n, training_stage_last)
-                print(f"    action:{action}    random")
+                print(f"    state:{obs},action:{action}    random")
             # s{-1}-S{T}, T<=n
             # => len(local_buffer)<= T+2
             next_obs, reward, done, _ = env.step(action)

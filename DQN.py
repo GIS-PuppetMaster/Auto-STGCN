@@ -49,15 +49,19 @@ class QNet(Module):
         max_value_action_batch = []
         values_batch = []
         if self.training_stage_last:
-            x_lstm = None
-            hidden = (torch.zeros(x.shape[0], self.hidden_size),
-                      torch.zeros(x.shape[0], self.hidden_size))
-            for i in range(x.shape[1]):
-                input_x = x[:, i, :].astype(np.float32)
-                hidden = self.lstm_layer(torch.as_tensor(input_x), hidden)
-                x_lstm = hidden[0]
+            hidden = (torch.zeros(1, self.hidden_size),
+                      torch.zeros(1, self.hidden_size))
+            x_lstm = []
+            for batch_idx in range(x.shape[0]):
+                x_simple = x[batch_idx]
+                for i in range(x_simple.shape[0]):
+                    input_x = x_simple[i, :].astype(np.float32)
+                    hidden = self.lstm_layer(torch.unsqueeze(torch.as_tensor(input_x), dim=0), hidden)
+                x_lstm.append(hidden[0])
+            x_lstm = torch.cat(x_lstm)
+
         for batch_idx in range(x.shape[0]):
-            x_simple = x[batch_idx, :]
+            x_simple = x[batch_idx]
             if not self.training_stage_last:
                 # terminal state
                 if (x_simple[1:] == np.array([-1, -1, -1, -1])).all() and x_simple[0] > 0:

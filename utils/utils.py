@@ -189,6 +189,11 @@ def generate_data(graph_signal_matrix_filename, transformer=None):
     '''
     data = np.load(graph_signal_matrix_filename)
     keys = data.keys()
+    x_min = generate_seq(data['data'], 12, 12)[0].min()
+    x_max = generate_seq(data['data'], 12, 12)[0].max()
+    y_min = generate_seq(data['data'], 12, 12)[1].min()
+    y_max = generate_seq(data['data'], 12, 12)[1].max()
+    transformer.set_data_set_info(x_min=x_min, x_max=x_max, y_min=y_min, y_max=y_max)
     if 'train' in keys and 'val' in keys and 'test' in keys:
         for i in generate_from_train_val_test(data, transformer):
             yield i

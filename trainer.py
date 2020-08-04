@@ -99,6 +99,7 @@ def train_DQN(config):
     ##############
     for episode in range(episodes):
         start_time = time()
+        print("====================================================")
         print(f"episode:{episode:}/{episodes}")
         # S{-2}
         obs = env.reset()
@@ -107,15 +108,18 @@ def train_DQN(config):
         local_buffer = []
         while not done:
             if np.random.random() >= exploration:
-                action, _ = Q_net(obs)
-                action = np.squeeze(action)
-                print(f"    state:{obs}, action:{action}    Qnet")
+                with torch.no_grad():
+                    action, _ = Q_net(obs)
+                    action = np.squeeze(action)
+                print(f"state:\n{obs}\naction:{action}    Qnet")
             else:
                 action = generate_random_action(obs, n, training_stage_last)
-                print(f"    state:{obs},action:{action}    random")
+                print(f"state:\n{obs}\naction:{action}    random")
             # s{-1}-S{T}, T<=n
             # => len(local_buffer)<= T+2
-            next_obs, reward, done, _ = env.step(action)
+            next_obs, reward, done, info = env.step(action)
+            if done:
+                test_loss_mean = info["test_loss_mean"]
             local_buffer.append([obs, action, reward, next_obs, done])
             obs = next_obs
         # edit reward and add into buffer

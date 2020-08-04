@@ -9,7 +9,7 @@
     "num_of_vertices": 358,
     "n": 2,
     "epsilon": 0.7,
-    "time_limit": 200,
+    "time_limit": 60,
     "num_of_weeks" : 1,
     "num_of_days" : 1,
     "num_of_hours" : 3,

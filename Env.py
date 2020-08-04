@@ -52,13 +52,15 @@ class GNNEnv(gym.Env):
         self.training_stage = False
         self.training_stage_action = None
 
-        self.transformer = MinMaxTransformer()
         self.data = {}
         self.batch_size_option = [32, 50, 64]
+        self.transformer = {}
         for batch_size in self.batch_size_option:
             loaders = []
             true_values = []
-            for idx, (x, y) in enumerate(generate_data(self.time_series_filename, transformer=self.transformer)):
+            transformer = MinMaxTransformer()
+            self.transformer[batch_size] = transformer
+            for idx, (x, y) in enumerate(generate_data(self.time_series_filename, transformer=transformer)):
                 y = y.squeeze(axis=-1)
                 print(x.shape, y.shape)
                 loaders.append(
@@ -119,9 +121,9 @@ class GNNEnv(gym.Env):
                 # self.action_trajectory.append(action)
                 self.current_state_phase += 1
                 # run model and get reward
-                reward = self.train_model(action)
+                reward, test_loss_mean = self.train_model(action)
                 self.state_trajectory.append(state.tolist())
-                return np.array(self.state_trajectory), reward, True, {}
+                return np.array(self.state_trajectory), reward, True, {"test_loss_mean":test_loss_mean}
         else:
             #                                                   end ST-block, need training
             if self.current_state_phase <= self.n - 1 and not (
@@ -148,8 +150,8 @@ class GNNEnv(gym.Env):
                 if not (action == np.array([-1, -1, -1, -1])).all():
                     self.action_trajectory.append(action)
                 self.current_state_phase += 1
-                reward = self.train_model(self.training_stage_action)
-                return state, reward, True, {}
+                reward, test_loss_mean = self.train_model(self.training_stage_action)
+                return state, reward, True, {"test_loss_mean": test_loss_mean}
 
     def reset(self):
         self.action_trajectory = []
@@ -177,6 +179,7 @@ class GNNEnv(gym.Env):
 
         # must set batch_size before init model
         batch_size = self.batch_size_option[action[1] - 1]
+        transformer = self.transformer[batch_size]
         self.config['batch_size'] = batch_size
         model = Model(self.action_trajectory, self.config, self.ctx, self.adj_SIPM)
         model.initialize(ctx=self.ctx)
@@ -224,7 +227,7 @@ class GNNEnv(gym.Env):
                     opt.step(batch_size)
                     loss_value += l.mean().asscalar()
                 train_loader.reset()
-                print(f"    epoch:{epoch} ,normal_loss:{loss_value / batch_size:.6f}")
+                print(f"    epoch:{epoch} ,normal_loss:{loss_value / train_batch_num:.6f}")
             # eval
             eval_loss_value = 0
             eval_loss_value_raw = 0
@@ -239,27 +242,49 @@ class GNNEnv(gym.Env):
                 output = model(X)
                 eval_loss_value_raw += loss(output, y).mean().asscalar()
                 # 反标准化
-                eval_y_min = self.transformer.y_data_set_min
-                eval_y_max = self.transformer.y_data_set_max
+                eval_y_min = transformer.y_data_set_min
+                eval_y_max = transformer.y_data_set_max
                 output = output * (eval_y_max - eval_y_min) + eval_y_min
-                y = y * (self.transformer.y_transformer_info[1][1] - self.transformer.y_transformer_info[1][
+                y = y * (transformer.y_transformer_info[1][1] - transformer.y_transformer_info[1][
                     0]) + \
-                    self.transformer.y_transformer_info[1][0]
+                    transformer.y_transformer_info[1][0]
                 eval_loss_value += loss(output, y).mean().asscalar()
             eval_loss_value /= eval_batch_num
             val_time = time() - val_time
             val_loader.reset()
             # get reward
             reward = -eval_loss_value * np.power(val_time / self.time_limit, self.sigma)
+            # test
+            test_loss_value = 0
+            test_loss_value_raw = 0
+            test_batch_num = 0
+            for X in test_loader:
+                y = X.label[0]
+                X = X.data[0]
+                test_batch_num += 1
+                X, y = X.as_in_context(self.ctx), y.as_in_context(self.ctx)
+                y = y.astype('float32')
+                output = model(X)
+                test_loss_value_raw += loss(output, y).mean().asscalar()
+                # 反标准化
+                test_y_min = transformer.y_data_set_min
+                test_y_max = transformer.y_data_set_max
+                output = output * (test_y_max - test_y_min) + test_y_min
+                y = y * (transformer.y_transformer_info[2][1] - transformer.y_transformer_info[2][0]) + \
+                    transformer.y_transformer_info[2][0]
+                test_loss_value += loss(output, y).mean().asscalar()
+            test_loss_value /= test_batch_num
+            test_loader.reset()
+            return reward, test_loss_value
         except Exception as e:
             if "out of memory" in e.args[
                 0] or "value 0 for Parameter num_args should be greater equal to 1, in operator Concat(name=\"\", num_args=\"0\", dim=\"1\")" in \
                     e.args[0]:
                 reward = -1e5
+                return reward, None
             else:
                 traceback.print_exc()
                 sys.exit()
-        return reward
 
     def render(self, mode='human'):
         pass

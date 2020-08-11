@@ -1,5 +1,4 @@
 from time import time
-
 import torch
 from ReplayBuffer import *
 from Env import GNNEnv
@@ -9,13 +8,15 @@ import json
 import os
 from utils.utils import generate_random_action
 import wandb
+from ExperimentDataLogger import Logger
+import argparse
 
 os.environ["MXNET_CUDNN_AUTOTUNE_DEFAULT"] = "0"
 
 torch.backends.cudnn.benchmark = True
 
 
-def train_DQN(config):
+def train_DQN(config, config_name):
     ######################
     # set up parameters  #
     ######################
@@ -43,7 +44,7 @@ def train_DQN(config):
         ctx = mx.gpu(config['ctx'])
     else:
         raise Exception("config_ctx error:" + str(config['ctx']))
-
+    logger = Logger(config_name, config)
     #####################
     #  build dqn model  #
     #####################
@@ -68,13 +69,13 @@ def train_DQN(config):
     ###################
     #  build GNN Env  #
     ###################
-    env = GNNEnv(config, ctx)
+    env = GNNEnv(config, ctx, logger)
 
     ################
     #  warming up  #
     ################
-    for ep in range(warm_up_batches*batch_size):
-        print(f"warming up, episode:{ep}/{warm_up_batches*batch_size}")
+    for ep in range(warm_up_batches * batch_size//(n+2)):
+        print(f"warming up, episode:{ep}/{warm_up_batches * batch_size//(n+2)}")
         # S{-2}
         obs = env.reset()
         done = False
@@ -98,6 +99,7 @@ def train_DQN(config):
     #  training  #
     ##############
     for episode in range(episodes):
+        logger.set_episode(episode)
         start_time = time()
         print("====================================================")
         print(f"episode:{episode:}/{episodes}")
@@ -117,9 +119,8 @@ def train_DQN(config):
                 print(f"state:\n{obs}\naction:{action}    random")
             # s{-1}-S{T}, T<=n
             # => len(local_buffer)<= T+2
+            logger(state=obs, action=action)
             next_obs, reward, done, info = env.step(action)
-            if done:
-                test_loss_mean = info["test_loss_mean"]
             local_buffer.append([obs, action, reward, next_obs, done])
             obs = next_obs
         # edit reward and add into buffer
@@ -128,6 +129,7 @@ def train_DQN(config):
         print(f"    reward:{reward}")
         for i in range(len(local_buffer)):
             local_buffer[i][2] = reward
+            logger(reward=reward)
             replay_buffer.add(*tuple(local_buffer[i]))
 
         # training
@@ -170,13 +172,21 @@ def train_DQN(config):
             target_Q.state_dict().update(Q_net.state_dict())
         if episode != 0 and episode % exploration_update_feq == 0:
             exploration_decay_rate *= exploration_decay_rate
-        print(f"    episode_time_cost:{time()-start_time}")
+        episode_time = time() - start_time
+        print(f"    episode_time_cost:{episode_time}")
+        logger(time=episode_time)
+        logger.save_DQN(Q_net)
+        logger.update_data_units()
+        logger.flush_log()
 
 
 if __name__ == "__main__":
-    config_filename = "./Config/test_env.json"
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--config', type=str, default=None)
+    args = parser.parse_args()
+    config_filename = args.config
     with open(config_filename, 'r') as f:
         config = json.loads(f.read())
     print(json.dumps(config, sort_keys=True, indent=4))
     wandb.init(project="GNN", config=config)
-    train_DQN(config)
+    train_DQN(config, config_filename.replace("/", "_").split('.')[1])

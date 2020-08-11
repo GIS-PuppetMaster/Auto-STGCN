@@ -65,10 +65,12 @@ for j in range(10):
                                 np.random.randint(low=1, high=5),
                                 pre_block,
                                 np.random.randint(low=0, high=2)])
-    action_list = [[1, 1, 1, 1],
-                   [1, 1, 1, 1],
-                   [1, 1, 1, 0],
-                   [-1, -1, -1, -1]]
+    action_list = [[1, 3, 3, 1, 0],
+                   [3, 1, 1, 0, 0],
+                   [1, 3, 4, 1, 0],
+                   [2, 3, 1, 2, 0],
+                   [3, 2, 2, 3, 0],
+                   [2, 3, 2, 3, 0]]
     actions = np.array(action_list)
     print("action:\n" + str(actions))
     start = time()

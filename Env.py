@@ -1,5 +1,6 @@
 from time import time
 import sys
+from utils.math_utils import MAE, RMSE, masked_mape_np
 import gym
 from gym import spaces
 from mxnet import autograd
@@ -9,13 +10,14 @@ from Model import Model
 from mxnet.lr_scheduler import FactorScheduler
 from utils.layer_utils import *
 import wandb
-
+from copy import deepcopy
 
 class GNNEnv(gym.Env):
-    def __init__(self, config, ctx, test=False):
+    def __init__(self, config, ctx, logger, test=False):
         self.ctx = ctx
         self.config = config
         self.test = test
+        self.logger = logger
         # parse config
         self.epochs = config['epochs']
         self.epsilon = config['epsilon']
@@ -24,10 +26,9 @@ class GNNEnv(gym.Env):
         self.id_filename = config['id_filename']
         self.time_series_filename = config['graph_signal_matrix_filename']
         self.pearsonr_adj_filename = config['pearsonr_adj_filename']
-        self.time_limit = config['time_limit']
+        self.max_time = config['max_time']
         self.n = config['n']
         self.training_stage_last = config['training_stage_last']
-        self.sigma = config['sigma']
         # load data
         self.dataset_name = os.path.split(self.adj_filename)[1].replace(".csv", "")
         time_series_matrix = np.load(self.time_series_filename)['data'][:, :, 0]
@@ -55,12 +56,21 @@ class GNNEnv(gym.Env):
         self.data = {}
         self.batch_size_option = [32, 50, 64]
         self.transformer = {}
+        self.train_set_sample_num = 0
+        self.eval_set_sample_num = 0
+        self.test_set_sample_num = 0
         for batch_size in self.batch_size_option:
             loaders = []
             true_values = []
             transformer = MinMaxTransformer()
             self.transformer[batch_size] = transformer
             for idx, (x, y) in enumerate(generate_data(self.time_series_filename, transformer=transformer)):
+                if idx==0:
+                    self.train_set_sample_num = x.shape[0]
+                elif idx==1:
+                    self.eval_set_sample_num = x.shape[0]
+                else:
+                    self.test_set_sample_num = x.shape[0]
                 y = y.squeeze(axis=-1)
                 print(x.shape, y.shape)
                 loaders.append(
@@ -123,9 +133,9 @@ class GNNEnv(gym.Env):
                 # run model and get reward
                 reward, test_loss_mean = self.train_model(action)
                 self.state_trajectory.append(state.tolist())
-                return np.array(self.state_trajectory), reward, True, {"test_loss_mean":test_loss_mean}
+                return np.array(self.state_trajectory), reward, True, {"test_loss_mean": test_loss_mean}
         else:
-            #                                                   end ST-block, need training
+            # end ST-block, need training
             if self.current_state_phase <= self.n - 1 and not (
                     self.current_state_phase > 0 and (action == np.array([-1, -1, -1, -1])).all()):
                 # state{-2}
@@ -208,9 +218,14 @@ class GNNEnv(gym.Env):
         wandb.log({"action": self.actions}, sync=False)
         try:
             # train
+            start_time = time()
             train_loader, val_loader, test_loader = self.data[batch_size]
             for epoch in range(self.config['epochs']):
+                loss_value_raw = 0
                 loss_value = 0
+                mae = 0
+                rmse = 0
+                mape = 0
                 train_batch_num = 0
                 for X in train_loader:
                     y = X.label[0]
@@ -225,13 +240,35 @@ class GNNEnv(gym.Env):
                         return
                     l.backward()
                     opt.step(batch_size)
-                    loss_value += l.mean().asscalar()
+                    loss_value_raw += l.mean().asscalar()
+                    # 反标准化
+                    train_y_min = transformer.y_data_set_min
+                    train_y_max = transformer.y_data_set_max
+                    output = output * (train_y_max - train_y_min) + train_y_min
+                    y = y * (transformer.y_transformer_info[0][1] - transformer.y_transformer_info[0][0]) + \
+                        transformer.y_transformer_info[0][0]
+                    loss_value += loss(output, y).mean().asscalar()
+                    mae += MAE(y, output)
+                    rmse += RMSE(y, output)
+                    mape += masked_mape_np(y, output)
                 train_loader.reset()
-                print(f"    epoch:{epoch} ,normal_loss:{loss_value / train_batch_num:.6f}")
+                loss_value_raw /= train_batch_num
+                loss_value /= train_batch_num
+                mae /= train_batch_num
+                rmse /= train_batch_num
+                mape /= train_batch_num
+                self.logger(train=[epoch, loss_value, mae, mape, rmse, (time() - start_time)/self.train_set_sample_num])
+                print(f"    epoch:{epoch} ,normal_loss:{loss_value_raw:.6f} ,loss:{loss_value}")
+            model_structure = deepcopy(self.action_trajectory)
+            model_structure.append(action)
+            self.logger.save_GNN(model, model_structure)
             # eval
             eval_loss_value = 0
             eval_loss_value_raw = 0
             eval_batch_num = 0
+            mae = 0
+            rmse = 0
+            mape = 0
             val_time = time()
             for X in val_loader:
                 y = X.label[0]
@@ -249,15 +286,26 @@ class GNNEnv(gym.Env):
                     0]) + \
                     transformer.y_transformer_info[1][0]
                 eval_loss_value += loss(output, y).mean().asscalar()
+                mae += MAE(y, output)
+                rmse += RMSE(y, output)
+                mape += masked_mape_np(y, output)
             eval_loss_value /= eval_batch_num
-            val_time = time() - val_time
+            mae /= eval_batch_num
+            rmse /= eval_batch_num
+            mape /= eval_batch_num
+            val_time = (time() - val_time)/self.eval_set_sample_num
             val_loader.reset()
+            self.logger(eval=[eval_loss_value, mae, mape, rmse, val_time])
             # get reward
-            reward = -eval_loss_value * np.power(val_time / self.time_limit, self.sigma)
+            reward = -(mae - np.power(np.e, -19) * np.log2(self.max_time - val_time))
             # test
             test_loss_value = 0
             test_loss_value_raw = 0
             test_batch_num = 0
+            mae = 0
+            rmse = 0
+            mape = 0
+            start_time = time()
             for X in test_loader:
                 y = X.label[0]
                 X = X.data[0]
@@ -273,18 +321,27 @@ class GNNEnv(gym.Env):
                 y = y * (transformer.y_transformer_info[2][1] - transformer.y_transformer_info[2][0]) + \
                     transformer.y_transformer_info[2][0]
                 test_loss_value += loss(output, y).mean().asscalar()
+                mae += MAE(y, output)
+                rmse += RMSE(y, output)
+                mape += masked_mape_np(y, output)
             test_loss_value /= test_batch_num
+            mae /= test_batch_num
+            rmse /= test_batch_num
+            mape /= test_batch_num
             test_loader.reset()
+            self.logger(test=[test_loss_value, mae, mape, rmse, (time() - start_time)/self.test_set_sample_num])
             return reward, test_loss_value
         except Exception as e:
-            if "out of memory" in e.args[
-                0] or "value 0 for Parameter num_args should be greater equal to 1, in operator Concat(name=\"\", num_args=\"0\", dim=\"1\")" in \
-                    e.args[0]:
-                reward = -1e5
-                return reward, None
-            else:
-                traceback.print_exc()
-                sys.exit()
+            self.logger.append_log_file(e.args[0])
+            # if "out of memory" in e.args[
+            #     0] or "value 0 for Parameter num_args should be greater equal to 1, in operator Concat(name=\"\", num_args=\"0\", dim=\"1\")" in \
+            #         e.args[0]:
+            reward = -1e5
+            self.logger(train=None, eval=None, test=None)
+            return reward, None
+            # else:
+            #     traceback.print_exc()
+            #     sys.exit()
 
     def render(self, mode='human'):
         pass

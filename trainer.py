@@ -134,10 +134,11 @@ def train_DQN(config, config_name):
 
         # training
         # sampling
-        samples = replay_buffer.sample(batch_size, prioritized_replay_beta)
         if prioritized_replay:
+            samples = replay_buffer.sample(batch_size, prioritized_replay_beta)
             obs, actions, rewards, next_obs, dones, weights, batch_idex = samples
         else:
+            samples = replay_buffer.sample(batch_size)
             obs, actions, rewards, next_obs, dones = samples
         # construct y
         y = []

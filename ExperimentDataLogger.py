@@ -62,10 +62,10 @@ class Logger:
         with open(self.log_path + "logger.log", "a") as f:
             f.write(string + "\n")
 
-    def save_GNN(self, model):
+    def save_GNN(self, model, model_structure):
         model.save_parameters(self.log_path + f"GNN/GNN_model_{self.episode}.params")
         with open(self.log_path +"GNN/model_structure.txt") as f:
-            f.write(model)
+            f.write(model_structure)
 
     def save_DQN(self, model):
         torch.save(model, self.log_path + f"DQN/QNet_{self.episode}")

@@ -338,6 +338,7 @@ class GNNEnv(gym.Env):
             #         e.args[0]:
             reward = -1e5
             self.logger(train=None, eval=None, test=None)
+            traceback.print_exc()
             return reward, None
             # else:
             #     traceback.print_exc()

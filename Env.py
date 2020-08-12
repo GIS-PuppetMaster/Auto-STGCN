@@ -99,7 +99,7 @@ class GNNEnv(gym.Env):
                     self.action_trajectory.append(action)
                     self.current_state_phase += 1
                     self.state_trajectory.append(state.tolist())
-                    return np.array(self.state_trajectory), None, False, {}
+                    return np.array(self.state_trajectory), None, False, {"exception_flag":False}
                 elif self.current_state_phase <= self.n:
                     # include state{1} and state{i} if next state is not training state
                     if (action == np.array([-1, -1, -1, -1, -1])).all() or self.current_state_phase == self.n:
@@ -110,7 +110,7 @@ class GNNEnv(gym.Env):
                         self.current_state_phase += 1
                         self.training_stage = True
                         self.state_trajectory.append(state.tolist())
-                        return np.array(self.state_trajectory), None, False, {}
+                        return np.array(self.state_trajectory), None, False, {"exception_flag":False}
                     else:
                         # state{1}..{n-1} and self.training_stage = False
                         # next state is not training state
@@ -120,7 +120,7 @@ class GNNEnv(gym.Env):
                         self.action_trajectory.append(action)
                         self.current_state_phase += 1
                         self.state_trajectory.append(state.tolist())
-                        return np.array(self.state_trajectory), None, False, {}
+                        return np.array(self.state_trajectory), None, False, {"exception_flag":False}
             else:
                 # training state(Terminal state)
                 # state{n+1}
@@ -133,7 +133,7 @@ class GNNEnv(gym.Env):
                 # run model and get reward
                 reward, test_loss_mean = self.train_model(action)
                 self.state_trajectory.append(state.tolist())
-                return np.array(self.state_trajectory), reward, True, {"test_loss_mean": test_loss_mean}
+                return np.array(self.state_trajectory), reward, True, {"exception_flag":False}
         else:
             # end ST-block, need training
             if self.current_state_phase <= self.n - 1 and not (
@@ -151,7 +151,7 @@ class GNNEnv(gym.Env):
                 else:
                     self.action_trajectory.append(action)
                 self.current_state_phase += 1
-                return state, None, False, {}
+                return state, None, False, {"exception_flag":False}
             else:
                 # set the last ST-Block and start training
                 # return terminal state
@@ -160,8 +160,8 @@ class GNNEnv(gym.Env):
                 if not (action == np.array([-1, -1, -1, -1])).all():
                     self.action_trajectory.append(action)
                 self.current_state_phase += 1
-                reward, test_loss_mean = self.train_model(self.training_stage_action)
-                return state, reward, True, {"test_loss_mean": test_loss_mean}
+                reward, flag = self.train_model(self.training_stage_action)
+                return state, reward, True, {"exception_flag": flag}
 
     def reset(self):
         self.action_trajectory = []
@@ -330,16 +330,15 @@ class GNNEnv(gym.Env):
             mape /= test_batch_num
             test_loader.reset()
             self.logger(test=[test_loss_value, mae, mape, rmse, (time() - start_time)/self.test_set_sample_num])
-            return reward, test_loss_value
+            return reward, False
         except Exception as e:
             self.logger.append_log_file(e.args[0])
             # if "out of memory" in e.args[
             #     0] or "value 0 for Parameter num_args should be greater equal to 1, in operator Concat(name=\"\", num_args=\"0\", dim=\"1\")" in \
             #         e.args[0]:
-            reward = -1e3
             self.logger(train=None, eval=None, test=None)
             traceback.print_exc()
-            return reward, None
+            return None, True
             # else:
             #     traceback.print_exc()
             #     sys.exit()

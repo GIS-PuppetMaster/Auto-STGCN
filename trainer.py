@@ -36,7 +36,7 @@ def train_DQN(config, config_name):
     double_dqn = config['double_dqn']
     training_stage_last = config['training_stage_last']
     target_net_update_feq = config["target_net_update_feq"]
-    exploration_update_feq = config["exploration_update_feq"]
+    exploration_decay_step = config["exploration_decay_step"]
     exploration_decay_rate = config["exploration_decay_rate"]
     if isinstance(config['ctx'], list):
         ctx = [mx.gpu(i) for i in config['ctx']]
@@ -74,11 +74,16 @@ def train_DQN(config, config_name):
     ################
     #  warming up  #
     ################
-    for ep in range(warm_up_batches * batch_size//(n+2)):
-        print(f"warming up, episode:{ep}/{warm_up_batches * batch_size//(n+2)}")
+    step_of_warming_up = warm_up_batches
+    ep = 0
+    exception_cnt = 0
+    while ep < step_of_warming_up or exception_cnt >= step_of_warming_up:
+        logger.set_episode(ep)
+        print(f"warming up, episode:{ep}/{step_of_warming_up}")
         # S{-2}
         obs = env.reset()
         done = False
+        exception_flag = False
         # store trajectory and edit the reward
         local_buffer = []
         while not done:
@@ -86,26 +91,37 @@ def train_DQN(config, config_name):
             action = np.squeeze(action)
             # s{-1}-S{T}, T<=n
             # => len(local_buffer)<= T+2
-            next_obs, reward, done, _ = env.step(action)
+            next_obs, reward, done, info = env.step(action)
+            logger(state=obs, action=action)
             local_buffer.append([obs, action, reward, next_obs, done])
             obs = next_obs
-        # edit reward and add into buffer
-        reward = local_buffer[-1][2]
+            exploration = info['exception_flag']
+            # edit reward and add into buffer
+        reward = local_buffer[-1][2] / len(local_buffer)
+        wandb.log({"episode": ep, "reward": reward}, sync=False)
         for i in range(len(local_buffer) - 1):
             local_buffer[i][2] = reward / len(local_buffer)
+            logger(reward=reward)
             replay_buffer.add(*tuple(local_buffer[i]))
+        if not exception_flag:
+            ep += 1
+        else:
+            exception_cnt += 1
 
     ##############
     #  training  #
     ##############
-    for episode in range(episodes):
-        logger.set_episode(episode)
+    episode = 0
+    exception_cnt = False
+    while episode < episodes or exception_cnt >= episodes:
+        logger.set_episode(step_of_warming_up + episode)
         start_time = time()
         print("====================================================")
-        print(f"episode:{episode+1}/{episodes}")
+        print(f"episode:{episode + 1}/{episodes}")
         # S{-2}
         obs = env.reset()
         done = False
+        exception_flag = False
         # store trajectory and edit the reward
         local_buffer = []
         while not done:
@@ -123,6 +139,7 @@ def train_DQN(config, config_name):
             next_obs, reward, done, info = env.step(action)
             local_buffer.append([obs, action, reward, next_obs, done])
             obs = next_obs
+            exception_flag = info['exception_flag']
         # edit reward and add into buffer
         reward = local_buffer[-1][2] / len(local_buffer)
         wandb.log({"episode": episode, "reward": reward}, sync=False)
@@ -131,7 +148,10 @@ def train_DQN(config, config_name):
             local_buffer[i][2] = reward
             logger(reward=reward)
             replay_buffer.add(*tuple(local_buffer[i]))
-
+        if not exception_flag:
+            episode += 1
+        else:
+            exception_cnt += 1
         # training
         # sampling
         if prioritized_replay:
@@ -171,7 +191,7 @@ def train_DQN(config, config_name):
         # update target Q_net
         if double_dqn and episode != 0 and episode % target_net_update_feq == 0:
             target_Q.state_dict().update(Q_net.state_dict())
-        if episode != 0 and episode % exploration_update_feq == 0:
+        if episode != 0 and episode % exploration_decay_step == 0:
             exploration_decay_rate *= exploration_decay_rate
         episode_time = time() - start_time
         print(f"    episode_time_cost:{episode_time}")
@@ -190,4 +210,4 @@ if __name__ == "__main__":
         config = json.loads(f.read())
     print(json.dumps(config, sort_keys=True, indent=4))
     wandb.init(project="GNN", config=config)
-    train_DQN(config, config_filename.replace('./Config/','').replace("/", "_").split('.')[0])
+    train_DQN(config, config_filename.replace('./Config/', '').replace("/", "_").split('.')[0])

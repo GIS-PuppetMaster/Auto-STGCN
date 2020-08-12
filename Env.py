@@ -336,7 +336,7 @@ class GNNEnv(gym.Env):
             # if "out of memory" in e.args[
             #     0] or "value 0 for Parameter num_args should be greater equal to 1, in operator Concat(name=\"\", num_args=\"0\", dim=\"1\")" in \
             #         e.args[0]:
-            reward = -1e5
+            reward = -1e3
             self.logger(train=None, eval=None, test=None)
             traceback.print_exc()
             return reward, None

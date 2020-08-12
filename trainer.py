@@ -102,7 +102,7 @@ def train_DQN(config, config_name):
         logger.set_episode(episode)
         start_time = time()
         print("====================================================")
-        print(f"episode:{episode:}/{episodes}")
+        print(f"episode:{episode+1}/{episodes}")
         # S{-2}
         obs = env.reset()
         done = False
@@ -164,7 +164,7 @@ def train_DQN(config, config_name):
         optimizer.step()
 
         # update buffer
-        td_error = logits - y
+        td_error = torch.abs(logits - y)
         if prioritized_replay:
             replay_buffer.update_priorities(batch_idex, td_error + prioritized_replay_eps)
 
@@ -190,4 +190,4 @@ if __name__ == "__main__":
         config = json.loads(f.read())
     print(json.dumps(config, sort_keys=True, indent=4))
     wandb.init(project="GNN", config=config)
-    train_DQN(config, config_filename.replace("/", "_").split('.')[1])
+    train_DQN(config, config_filename.replace('./Config/','').replace("/", "_").split('.')[0])

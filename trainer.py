@@ -92,18 +92,19 @@ def train_DQN(config, config_name):
             # s{-1}-S{T}, T<=n
             # => len(local_buffer)<= T+2
             next_obs, reward, done, info = env.step(action)
-            logger(state=obs, action=action)
-            local_buffer.append([obs, action, reward, next_obs, done])
-            obs = next_obs
-            exploration = info['exception_flag']
+            exception_flag = info['exception_flag']
+            if not exception_flag:
+                logger(state=obs, action=action)
+                local_buffer.append([obs, action, reward, next_obs, done])
+                obs = next_obs
             # edit reward and add into buffer
-        reward = local_buffer[-1][2] / len(local_buffer)
-        wandb.log({"episode": ep, "reward": reward}, sync=False)
-        for i in range(len(local_buffer) - 1):
-            local_buffer[i][2] = reward / len(local_buffer)
-            logger(reward=reward)
-            replay_buffer.add(*tuple(local_buffer[i]))
         if not exception_flag:
+            reward = local_buffer[-1][2] / len(local_buffer)
+            wandb.log({"episode": ep, "reward": reward}, sync=False)
+            for i in range(len(local_buffer) - 1):
+                local_buffer[i][2] = reward / len(local_buffer)
+                logger(reward=reward)
+                replay_buffer.add(*tuple(local_buffer[i]))
             ep += 1
         else:
             exception_cnt += 1
@@ -135,20 +136,21 @@ def train_DQN(config, config_name):
                 print(f"state:\n{obs}\naction:{action}    random")
             # s{-1}-S{T}, T<=n
             # => len(local_buffer)<= T+2
-            logger(state=obs, action=action)
             next_obs, reward, done, info = env.step(action)
-            local_buffer.append([obs, action, reward, next_obs, done])
-            obs = next_obs
             exception_flag = info['exception_flag']
-        # edit reward and add into buffer
-        reward = local_buffer[-1][2] / len(local_buffer)
-        wandb.log({"episode": episode, "reward": reward}, sync=False)
-        print(f"    reward:{reward}")
-        for i in range(len(local_buffer)):
-            local_buffer[i][2] = reward
-            logger(reward=reward)
-            replay_buffer.add(*tuple(local_buffer[i]))
+            if not exception_flag:
+                logger(state=obs, action=action)
+                local_buffer.append([obs, action, reward, next_obs, done])
+                obs = next_obs
         if not exception_flag:
+            # edit reward and add into buffer
+            reward = local_buffer[-1][2] / len(local_buffer)
+            wandb.log({"episode": episode, "reward": reward}, sync=False)
+            print(f"    reward:{reward}")
+            for i in range(len(local_buffer)):
+                local_buffer[i][2] = reward
+                logger(reward=reward)
+                replay_buffer.add(*tuple(local_buffer[i]))
             episode += 1
         else:
             exception_cnt += 1

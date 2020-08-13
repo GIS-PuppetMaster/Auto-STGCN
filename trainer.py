@@ -79,7 +79,7 @@ def train_DQN(config, config_name):
     exception_cnt = 0
     while ep < step_of_warming_up:
         logger.set_episode(ep)
-        print(f"warming up, episode:{ep}/{step_of_warming_up}")
+        print(f"warming up, episode:{ep+1}/{step_of_warming_up}")
         # S{-2}
         obs = env.reset()
         done = False
@@ -105,6 +105,8 @@ def train_DQN(config, config_name):
                 local_buffer[i][2] = reward / len(local_buffer)
                 logger(reward=reward)
                 replay_buffer.add(*tuple(local_buffer[i]))
+            logger.update_data_units()
+            logger.flush_log()
             ep += 1
         else:
             exception_cnt += 1

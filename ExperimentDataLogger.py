@@ -36,7 +36,6 @@ class Logger:
 
     def update_data_units(self):
         self.data_unit.append(self.data_buffer)
-        assert len(self.data_unit) - 1 == self.episode+self.config['B']
 
     def set_episode(self, episode):
         self.episode = episode

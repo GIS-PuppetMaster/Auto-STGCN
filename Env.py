@@ -132,9 +132,9 @@ class GNNEnv(gym.Env):
                 # self.action_trajectory.append(action)
                 self.current_state_phase += 1
                 # run model and get reward
-                reward, test_loss_mean = self.train_model(action)
+                reward, flag = self.train_model(action)
                 self.state_trajectory.append(state.tolist())
-                return np.array(self.state_trajectory), reward, True, {"exception_flag": False}
+                return np.array(self.state_trajectory), reward, True, {"exception_flag": flag}
         else:
             # end ST-block, need training
             if self.current_state_phase <= self.n - 1 and not (

@@ -297,6 +297,7 @@ class GNNEnv(gym.Env):
             mape /= eval_batch_num
             raw_val_time = time() - val_time
             val_time = raw_val_time / self.eval_set_sample_num
+            print(f"    eval_result: loss:{eval_loss_value}, MAE:{mae}, MAPE:{mape}, RMSE:{rmse}, time:{val_time}")
             val_loader.reset()
             # get reward
             reward = -(mae - np.power(np.e, -19) * np.log2(self.max_time/raw_val_time))
@@ -334,6 +335,7 @@ class GNNEnv(gym.Env):
             rmse /= test_batch_num
             mape /= test_batch_num
             test_loader.reset()
+            print(f"    test_result: loss:{test_loss_value}, MAE:{mae}, MAPE:{mape}, RMSE:{rmse}, time:{val_time}")
             self.logger(test=[test_loss_value, mae, mape, rmse, (time() - start_time) / self.test_set_sample_num])
             return reward, False
         except Exception as e:

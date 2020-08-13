@@ -22,6 +22,7 @@ class Logger:
         self.data_unit = []
         self.data_buffer = [[], [], [], [], [], [], None]
         self.max_reward = -float("inf")
+        self.config = config
         if not os.path.exists(self.log_path):
             os.makedirs(self.log_path)
             os.makedirs(self.log_path + "GNN")
@@ -35,7 +36,7 @@ class Logger:
 
     def update_data_units(self):
         self.data_unit.append(self.data_buffer)
-        assert len(self.data_unit) - 1 == self.episode
+        assert len(self.data_unit) - 1 == self.episode+self.config['B']
 
     def set_episode(self, episode):
         self.episode = episode

@@ -77,7 +77,7 @@ def train_DQN(config, config_name):
     step_of_warming_up = warm_up_batches
     ep = 0
     exception_cnt = 0
-    while ep < step_of_warming_up or exception_cnt >= step_of_warming_up:
+    while ep < step_of_warming_up:
         logger.set_episode(ep)
         print(f"warming up, episode:{ep}/{step_of_warming_up}")
         # S{-2}
@@ -145,7 +145,7 @@ def train_DQN(config, config_name):
         if not exception_flag:
             # edit reward and add into buffer
             reward = local_buffer[-1][2] / len(local_buffer)
-            wandb.log({"episode": episode, "reward": reward}, sync=False)
+            wandb.log({"episode": episode+step_of_warming_up, "reward": reward}, sync=False)
             print(f"    reward:{reward}")
             for i in range(len(local_buffer)):
                 local_buffer[i][2] = reward

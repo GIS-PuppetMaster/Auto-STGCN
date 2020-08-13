@@ -299,7 +299,7 @@ class GNNEnv(gym.Env):
             val_time = raw_val_time / self.eval_set_sample_num
             val_loader.reset()
             # get reward
-            reward = -(mae - np.power(np.e, -19) * np.log2(self.max_time - raw_val_time))
+            reward = -(mae - np.power(np.e, -19) * np.log2(self.max_time/raw_val_time))
             if reward < -1e3:
                 return None, True
             self.logger(eval=[eval_loss_value, mae, mape, rmse, val_time])

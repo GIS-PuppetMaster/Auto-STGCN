@@ -12,6 +12,7 @@ from utils.layer_utils import *
 import wandb
 from copy import deepcopy
 
+
 class GNNEnv(gym.Env):
     def __init__(self, config, ctx, logger, test=False):
         self.ctx = ctx
@@ -65,9 +66,9 @@ class GNNEnv(gym.Env):
             transformer = MinMaxTransformer()
             self.transformer[batch_size] = transformer
             for idx, (x, y) in enumerate(generate_data(self.time_series_filename, transformer=transformer)):
-                if idx==0:
+                if idx == 0:
                     self.train_set_sample_num = x.shape[0]
-                elif idx==1:
+                elif idx == 1:
                     self.eval_set_sample_num = x.shape[0]
                 else:
                     self.test_set_sample_num = x.shape[0]
@@ -99,7 +100,7 @@ class GNNEnv(gym.Env):
                     self.action_trajectory.append(action)
                     self.current_state_phase += 1
                     self.state_trajectory.append(state.tolist())
-                    return np.array(self.state_trajectory), None, False, {"exception_flag":False}
+                    return np.array(self.state_trajectory), None, False, {"exception_flag": False}
                 elif self.current_state_phase <= self.n:
                     # include state{1} and state{i} if next state is not training state
                     if (action == np.array([-1, -1, -1, -1, -1])).all() or self.current_state_phase == self.n:
@@ -110,7 +111,7 @@ class GNNEnv(gym.Env):
                         self.current_state_phase += 1
                         self.training_stage = True
                         self.state_trajectory.append(state.tolist())
-                        return np.array(self.state_trajectory), None, False, {"exception_flag":False}
+                        return np.array(self.state_trajectory), None, False, {"exception_flag": False}
                     else:
                         # state{1}..{n-1} and self.training_stage = False
                         # next state is not training state
@@ -120,7 +121,7 @@ class GNNEnv(gym.Env):
                         self.action_trajectory.append(action)
                         self.current_state_phase += 1
                         self.state_trajectory.append(state.tolist())
-                        return np.array(self.state_trajectory), None, False, {"exception_flag":False}
+                        return np.array(self.state_trajectory), None, False, {"exception_flag": False}
             else:
                 # training state(Terminal state)
                 # state{n+1}
@@ -133,7 +134,7 @@ class GNNEnv(gym.Env):
                 # run model and get reward
                 reward, test_loss_mean = self.train_model(action)
                 self.state_trajectory.append(state.tolist())
-                return np.array(self.state_trajectory), reward, True, {"exception_flag":False}
+                return np.array(self.state_trajectory), reward, True, {"exception_flag": False}
         else:
             # end ST-block, need training
             if self.current_state_phase <= self.n - 1 and not (
@@ -151,7 +152,7 @@ class GNNEnv(gym.Env):
                 else:
                     self.action_trajectory.append(action)
                 self.current_state_phase += 1
-                return state, None, False, {"exception_flag":False}
+                return state, None, False, {"exception_flag": False}
             else:
                 # set the last ST-Block and start training
                 # return terminal state
@@ -257,7 +258,8 @@ class GNNEnv(gym.Env):
                 mae /= train_batch_num
                 rmse /= train_batch_num
                 mape /= train_batch_num
-                self.logger(train=[epoch, loss_value, mae, mape, rmse, (time() - start_time)/self.train_set_sample_num])
+                self.logger(
+                    train=[epoch, loss_value, mae, mape, rmse, (time() - start_time) / self.train_set_sample_num])
                 print(f"    epoch:{epoch} ,normal_loss:{loss_value_raw:.6f} ,loss:{loss_value}")
             model_structure = deepcopy(self.action_trajectory)
             model_structure.append(action)
@@ -293,11 +295,13 @@ class GNNEnv(gym.Env):
             mae /= eval_batch_num
             rmse /= eval_batch_num
             mape /= eval_batch_num
-            val_time = (time() - val_time)/self.eval_set_sample_num
+            val_time = (time() - val_time) / self.eval_set_sample_num
             val_loader.reset()
-            self.logger(eval=[eval_loss_value, mae, mape, rmse, val_time])
             # get reward
             reward = -(mae - np.power(np.e, -19) * np.log2(self.max_time - val_time))
+            if reward < -1e3:
+                return None, True
+            self.logger(eval=[eval_loss_value, mae, mape, rmse, val_time])
             # test
             test_loss_value = 0
             test_loss_value_raw = 0
@@ -329,7 +333,7 @@ class GNNEnv(gym.Env):
             rmse /= test_batch_num
             mape /= test_batch_num
             test_loader.reset()
-            self.logger(test=[test_loss_value, mae, mape, rmse, (time() - start_time)/self.test_set_sample_num])
+            self.logger(test=[test_loss_value, mae, mape, rmse, (time() - start_time) / self.test_set_sample_num])
             return reward, False
         except Exception as e:
             self.logger.append_log_file(e.args[0])

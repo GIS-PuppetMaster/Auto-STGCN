@@ -303,6 +303,8 @@ class GNNEnv(gym.Env):
             reward = -(mae - np.power(np.e, -19) * np.log2(self.max_time/raw_val_time))
             if reward < -1e3:
                 return None, True
+            else:
+                reward /= 100
             self.logger(eval=[eval_loss_value, mae, mape, rmse, val_time])
             # test
             test_loss_value = 0

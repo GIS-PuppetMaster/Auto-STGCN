@@ -19,14 +19,10 @@ class QNet(Module):
         self.model = Sequential(
             Linear(in_features=(state_dim if not self.training_stage_last else self.hidden_size) + action_dim,
                    out_features=128),
-            Tanh(),
-            Linear(in_features=128, out_features=1024),
-            Tanh(),
-            Linear(in_features=1024, out_features=1024),
-            Tanh(),
-            Linear(in_features=1024, out_features=128),
-            Tanh(),
-            Linear(in_features=128, out_features=1),
+            LeakyReLU(),
+            Linear(in_features=128, out_features=256),
+            LeakyReLU(),
+            Linear(in_features=256, out_features=1),
         )
         # generate all possible action value
         self.action_dict = generate_action_dict(n, training_stage_last)

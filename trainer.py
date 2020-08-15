@@ -91,10 +91,10 @@ def train_DQN(config, config_name):
             action = np.squeeze(action)
             # s{-1}-S{T}, T<=n
             # => len(local_buffer)<= T+2
+            logger(state=obs, action=action)
             next_obs, reward, done, info = env.step(action)
             exception_flag = info['exception_flag']
             if not exception_flag:
-                logger(state=obs, action=action)
                 local_buffer.append([obs, action, reward, next_obs, done])
                 obs = next_obs
             # edit reward and add into buffer
@@ -138,10 +138,10 @@ def train_DQN(config, config_name):
                 print(f"state:\n{obs}\naction:{action}    random")
             # s{-1}-S{T}, T<=n
             # => len(local_buffer)<= T+2
+            logger(state=obs, action=action)
             next_obs, reward, done, info = env.step(action)
             exception_flag = info['exception_flag']
             if not exception_flag:
-                logger(state=obs, action=action)
                 local_buffer.append([obs, action, reward, next_obs, done])
                 obs = next_obs
         if not exception_flag:

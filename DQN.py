@@ -23,6 +23,7 @@ class QNet(Module):
             Linear(in_features=128, out_features=256),
             LeakyReLU(),
             Linear(in_features=256, out_features=1),
+            Tanh()
         )
         # generate all possible action value
         self.action_dict = generate_action_dict(n, training_stage_last)

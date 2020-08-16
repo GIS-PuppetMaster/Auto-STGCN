@@ -74,6 +74,7 @@ class GNNEnv(gym.Env):
                     self.test_set_sample_num = x.shape[0]
                 y = y.squeeze(axis=-1)
                 print(x.shape, y.shape)
+                self.logger.append_log_file(str((x.shape,y.shape)))
                 loaders.append(
                     mx.io.NDArrayIter(
                         x, y,

@@ -167,9 +167,9 @@ def train_DQN(config, config_name):
         # construct y
         y = []
         if double_dqn:
-            _, max_Q_batch = target_Q(next_obs)
+            _, max_Q_batch = target_Q(next_obs).detach()
         else:
-            _, max_Q_batch = Q_net(next_obs)
+            _, max_Q_batch = Q_net(next_obs).detach()
         for i in range(batch_size):
             if dones[i] == 0:
                 max_Q = torch.max(max_Q_batch[i])
@@ -184,6 +184,7 @@ def train_DQN(config, config_name):
         logits = torch.cat(logits, dim=0)
         # train
         l = loss(logits, y)
+        optimizer.zero_grad()
         l.backward()
         optimizer.step()
 

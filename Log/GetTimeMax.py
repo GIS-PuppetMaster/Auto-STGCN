@@ -2,7 +2,7 @@ import pickle as pk
 from ExperimentDataLogger import *
 import pandas as pd
 
-with open('./PEMS03_experiment1_prioritized_last/logger.pkl', 'rb') as f:
+with open('PEMS03_experiment1_prioritized_last_/logger.pkl', 'rb') as f:
     logger = pk.load(f)
 times = []
 for _, _, train, eval, test, _, time in logger.data_unit:

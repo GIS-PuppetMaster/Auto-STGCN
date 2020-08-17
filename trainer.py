@@ -92,9 +92,8 @@ def train_DQN(config, config_name):
             logger(state=obs, action=action)
             next_obs, reward, done, info = env.step(action)
             exception_flag = info['exception_flag']
-            if not exception_flag:
-                local_buffer.append([obs, action, reward, next_obs, done])
-                obs = next_obs
+            local_buffer.append([obs, action, reward, next_obs, done])
+            obs = next_obs
             # edit reward and add into buffer
         reward = local_buffer[-1][2] / len(local_buffer)
         if not exception_flag:
@@ -137,9 +136,8 @@ def train_DQN(config, config_name):
             logger(state=obs, action=action)
             next_obs, reward, done, info = env.step(action)
             exception_flag = info['exception_flag']
-            if not exception_flag:
-                local_buffer.append([obs, action, reward, next_obs, done])
-                obs = next_obs
+            local_buffer.append([obs, action, reward, next_obs, done])
+            obs = next_obs
 
         # edit reward and add into buffer
         reward = local_buffer[-1][2] / len(local_buffer)

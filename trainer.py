@@ -59,8 +59,7 @@ def train_DQN(config, config_name):
         optimizer = torch.optim.RMSprop(Q_net.parameters(), lr)
     else:
         raise Exception(f"Wrong opt type:{opt}, only support \"adam\" or \"RMSprop\"")
-    loss = torch.nn.L1Loss().cuda()
-    loss.requires_grad = True
+    loss = torch.nn.L1Loss()
     if prioritized_replay:
         replay_buffer = PrioritizedReplayBuffer(size=replay_buffer_size, alpha=prioritized_replay_alpha)
     else:
@@ -167,15 +166,15 @@ def train_DQN(config, config_name):
         # construct y
         y = []
         if double_dqn:
-            _, max_Q_batch = target_Q(next_obs).detach()
+            _, max_Q_batch = target_Q(next_obs, detach=True)
         else:
-            _, max_Q_batch = Q_net(next_obs).detach()
+            _, max_Q_batch = Q_net(next_obs, detach=True)
         for i in range(batch_size):
             if dones[i] == 0:
                 max_Q = torch.max(max_Q_batch[i])
                 y.append(torch.unsqueeze(rewards[i] + gamma * max_Q, dim=0))
             else:
-                y.append(torch.unsqueeze(torch.tensor(rewards[i], requires_grad=True), dim=0))
+                y.append(torch.unsqueeze(torch.tensor(rewards[i]), dim=0))
         y = torch.cat(y, dim=0)
         _, values = Q_net(obs)
         logits = []

@@ -28,7 +28,7 @@ class QNet(Module):
         # generate all possible action value
         self.action_dict = generate_action_dict(n, training_stage_last)
 
-    def forward(self, x: np.ndarray):
+    def forward(self, x: np.ndarray, detach=False):
         # x:state
         #   np.ndarray
         #   if self.training_stage_last:
@@ -93,7 +93,10 @@ class QNet(Module):
             max_value_action = actions[torch.argmax(values), :]
             max_value_action_batch.append(np.expand_dims(max_value_action, axis=0))
             # construct Q_value batch, type:list(torch.Tensor)
-            values_batch.append(values)
+            if detach:
+                values_batch.append(values.detach())
+            else:
+                values_batch.append(values)
         # construct action batch, shape=(batch_size, action_dim), type = np.ndarray
         max_value_action_batch = np.concatenate(max_value_action_batch, axis=0)
         return max_value_action_batch, values_batch

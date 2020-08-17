@@ -1,6 +1,6 @@
 {
     "module_type": "individual",
-    "epochs":20,
+    "epochs":5,
     "ctx": 0,
     "adj_filename": "data/PEMS08/PEMS08.csv",
     "id_filename": null,

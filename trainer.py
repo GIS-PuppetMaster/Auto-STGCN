@@ -96,9 +96,9 @@ def train_DQN(config, config_name):
                 local_buffer.append([obs, action, reward, next_obs, done])
                 obs = next_obs
             # edit reward and add into buffer
+        reward = local_buffer[-1][2] / len(local_buffer)
         if not exception_flag:
             wandb.log({"episode": ep, "reward": reward}, sync=False)
-        reward = local_buffer[-1][2] / len(local_buffer)
         for i in range(len(local_buffer) - 1):
             local_buffer[i][2] = reward / len(local_buffer)
             logger(reward=reward)
@@ -140,10 +140,11 @@ def train_DQN(config, config_name):
             if not exception_flag:
                 local_buffer.append([obs, action, reward, next_obs, done])
                 obs = next_obs
-        if not exception_flag:
-            wandb.log({"episode": episode + step_of_warming_up, "reward": reward}, sync=False)
+
         # edit reward and add into buffer
         reward = local_buffer[-1][2] / len(local_buffer)
+        if not exception_flag:
+            wandb.log({"episode": episode + step_of_warming_up, "reward": reward}, sync=False)
         print(f"    reward:{reward}")
         for i in range(len(local_buffer)):
             local_buffer[i][2] = reward

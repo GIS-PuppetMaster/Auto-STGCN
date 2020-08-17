@@ -75,10 +75,9 @@ def train_DQN(config, config_name):
     ################
     step_of_warming_up = warm_up_batches
     ep = 0
-    exception_cnt = 0
     while ep < step_of_warming_up:
         logger.set_episode(ep)
-        print(f"warming up, episode:{ep+1}/{step_of_warming_up}")
+        print(f"warming up, episode:{ep + 1}/{step_of_warming_up}")
         # S{-2}
         obs = env.reset()
         done = False
@@ -98,17 +97,15 @@ def train_DQN(config, config_name):
                 obs = next_obs
             # edit reward and add into buffer
         if not exception_flag:
-            reward = local_buffer[-1][2] / len(local_buffer)
             wandb.log({"episode": ep, "reward": reward}, sync=False)
-            for i in range(len(local_buffer) - 1):
-                local_buffer[i][2] = reward / len(local_buffer)
-                logger(reward=reward)
-                replay_buffer.add(*tuple(local_buffer[i]))
-            logger.update_data_units()
-            logger.flush_log()
-            ep += 1
-        else:
-            exception_cnt += 1
+        reward = local_buffer[-1][2] / len(local_buffer)
+        for i in range(len(local_buffer) - 1):
+            local_buffer[i][2] = reward / len(local_buffer)
+            logger(reward=reward)
+            replay_buffer.add(*tuple(local_buffer[i]))
+        logger.update_data_units()
+        logger.flush_log()
+        ep += 1
 
     ##############
     #  training  #
@@ -144,17 +141,15 @@ def train_DQN(config, config_name):
                 local_buffer.append([obs, action, reward, next_obs, done])
                 obs = next_obs
         if not exception_flag:
-            # edit reward and add into buffer
-            reward = local_buffer[-1][2] / len(local_buffer)
-            wandb.log({"episode": episode+step_of_warming_up, "reward": reward}, sync=False)
-            print(f"    reward:{reward}")
-            for i in range(len(local_buffer)):
-                local_buffer[i][2] = reward
-                logger(reward=reward)
-                replay_buffer.add(*tuple(local_buffer[i]))
-            episode += 1
-        else:
-            exception_cnt += 1
+            wandb.log({"episode": episode + step_of_warming_up, "reward": reward}, sync=False)
+        # edit reward and add into buffer
+        reward = local_buffer[-1][2] / len(local_buffer)
+        print(f"    reward:{reward}")
+        for i in range(len(local_buffer)):
+            local_buffer[i][2] = reward
+            logger(reward=reward)
+            replay_buffer.add(*tuple(local_buffer[i]))
+        episode += 1
         # training
         # sampling
         if prioritized_replay:
@@ -183,6 +178,7 @@ def train_DQN(config, config_name):
         logits = torch.cat(logits, dim=0)
         # train
         l = loss(logits, y)
+        wandb.log({"episode": episode + step_of_warming_up, "q_loss": l}, sync=False)
         optimizer.zero_grad()
         l.backward()
         optimizer.step()
@@ -200,7 +196,8 @@ def train_DQN(config, config_name):
         episode_time = time() - start_time
         print(f"    episode_time_cost:{episode_time}")
         logger(time=episode_time)
-        logger.save_DQN(Q_net)
+        if episode % 10 == 0:
+            logger.save_DQN(Q_net)
         logger.update_data_units()
         logger.flush_log()
 

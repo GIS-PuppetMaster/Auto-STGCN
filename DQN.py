@@ -82,21 +82,24 @@ class QNet(Module):
                 if self.training_stage_last:
                     action = torch.as_tensor(action, dtype=torch.float32)
                     input_array = torch.cat((x_lstm[batch_idx, :], action))
-                    value.append(self.model(torch.as_tensor(input_array)))
+                    if detach:
+                        value.append(self.model(torch.as_tensor(input_array)).detach())
+                    else:
+                        value.append(self.model(torch.as_tensor(input_array)))
                 else:
                     input_array = np.concatenate((x_simple, action))
                     input_array = input_array.astype(np.float32)
                     # value:Q_value, shape=(action.dim, ), type = torch.Tensor
-                    value.append(self.model(torch.as_tensor(input_array)))
+                    if detach:
+                        value.append(self.model(torch.as_tensor(input_array)).detach())
+                    else:
+                        value.append(self.model(torch.as_tensor(input_array)))
             values = torch.cat(value, dim=0)
             # get max Q value and get the action with max Q
             max_value_action = actions[torch.argmax(values), :]
             max_value_action_batch.append(np.expand_dims(max_value_action, axis=0))
             # construct Q_value batch, type:list(torch.Tensor)
-            if detach:
-                values_batch.append(values.detach())
-            else:
-                values_batch.append(values)
+            values_batch.append(values)
         # construct action batch, shape=(batch_size, action_dim), type = np.ndarray
         max_value_action_batch = np.concatenate(max_value_action_batch, axis=0)
         return max_value_action_batch, values_batch

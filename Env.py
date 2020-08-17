@@ -264,7 +264,6 @@ class GNNEnv(gym.Env):
                 print(f"    epoch:{epoch} ,normal_loss:{loss_value_raw:.6f} ,loss:{loss_value}")
             model_structure = deepcopy(self.action_trajectory)
             model_structure.append(action)
-            self.logger.save_GNN(model, model_structure)
             # eval
             eval_loss_value = 0
             eval_loss_value_raw = 0
@@ -303,10 +302,11 @@ class GNNEnv(gym.Env):
             # get reward
             reward = -(mae - np.power(np.e, -19) * np.log2(self.max_time/raw_val_time))
             if reward < -1e3:
-                return None, True
+                return reward/100, True
             else:
                 reward /= 100
             self.logger(eval=[eval_loss_value, mae, mape, rmse, val_time])
+            self.logger.save_GNN(model, model_structure, reward/len(self.action_trajectory)+1)
             # test
             test_loss_value = 0
             test_loss_value_raw = 0
@@ -348,7 +348,7 @@ class GNNEnv(gym.Env):
             #         e.args[0]:
             self.logger(train=None, eval=None, test=None)
             traceback.print_exc()
-            return None, True
+            return 1e-3, True
             # else:
             #     traceback.print_exc()
             #     sys.exit()

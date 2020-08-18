@@ -213,21 +213,20 @@ def generate_seq(data, train_length, pred_length):
     return np.split(seq, 2, axis=1)
 
 
-def generate_action_dict(n, training_stage_last):
-    action_dict = {}
+def generate_action(state, n, training_stage_last):
+    action_list = []
     if training_stage_last:
-        action_list = []
-        # input state (last state): state{-1}
-        for i in range(1, 3):
-            for j in range(1, 4):
-                for k in range(1, 4):
-                    for l in range(1, 3):
-                        action_list.append([i, j, k, l, 0])
-        action_dict[-1] = np.array(action_list)
-        # last state{0}-{n-1}
-        #      block{1}-{n}
-        for state in range(0, n):
-            action_list = []
+        if state == -1:
+            # input state (last state): state{-1}
+            for i in range(1, 3):
+                for j in range(1, 4):
+                    for k in range(1, 4):
+                        for l in range(1, 3):
+                            action_list.append([i, j, k, l, 0])
+            return np.array(action_list)
+        elif 0 <= state < n:
+            # last state{0}-{n-1}
+            #      block{1}-{n}
             for i in range(1, 5):
                 for j in range(1, 4):
                     for k in range(1, 5):
@@ -238,38 +237,37 @@ def generate_action_dict(n, training_stage_last):
                                 # may be terminal action
                                 for m in range(0, 2):
                                     action_list.append([i, j, k, l, m])
-            action_dict[state] = np.array(action_list)
-        # training stage
-        # last state{n} or dqn gave terminal action
-        action_list = []
-        for i in range(1, 3):
-            for j in range(1, 4):
-                for k in range(1, 4):
-                    for l in range(1, 4):
-                        action_list.append([i, j, k, l, 0])
-        action_dict[n] = np.array(action_list)
+            return np.array(action_list)
+        elif state == n:
+            # training stage
+            # last state{n} or dqn gave terminal action
+            for i in range(1, 3):
+                for j in range(1, 4):
+                    for k in range(1, 4):
+                        for l in range(1, 4):
+                            action_list.append([i, j, k, l, 0])
+            return np.array(action_list)
+        else:
+            raise Exception(f"Error state:{state}, n:{n}, training_stage_last:{training_stage_last}")
     else:
-        # last state{-2}
-        action_list = []
-        for i in range(1, 3):
-            for j in range(1, 4):
-                for k in range(1, 4):
-                    for l in range(1, 3):
-                        action_list.append([i, j, k, l])
-        action_dict[-2] = np.array(action_list)
-        # last state{-1}
-        # training stage
-        action_list = []
-        for i in range(1, 3):
-            for j in range(1, 4):
-                for k in range(1, 4):
-                    for l in range(1, 4):
-                        action_list.append([i, j, k, l])
-        action_dict[-1] = np.array(action_list)
-        # last state{0}-{n-1}
-        #      block{1}-{n}
-        for state in range(0, n):
-            action_list = []
+        if state == -2:
+            # last state{-2}
+            for i in range(1, 3):
+                for j in range(1, 4):
+                    for k in range(1, 4):
+                        for l in range(1, 3):
+                            action_list.append([i, j, k, l])
+            return np.array(action_list)
+        elif state == -1:
+            # last state{-1}
+            # training stage
+            for i in range(1, 3):
+                for j in range(1, 4):
+                    for k in range(1, 4):
+                        for l in range(1, 4):
+                            action_list.append([i, j, k, l])
+            return np.array(action_list)
+        elif 0 <= state < n:
             # may be terminal action
             if state != 0:
                 action_list.append([-1, -1, -1, -1])
@@ -278,7 +276,33 @@ def generate_action_dict(n, training_stage_last):
                     for k in range(1, 5):
                         for l in range(0, state + 1):
                             action_list.append([i, j, k, l])
-            action_dict[state] = np.array(action_list)
+            return np.array(action_list)
+        else:
+            raise Exception(f"Error state:{state}, n:{n}, training_stage_last:{training_stage_last}")
+
+
+def generate_action_dict(n, training_stage_last):
+    action_dict = {}
+    if training_stage_last:
+        # input state (last state): state{-1}
+        action_dict[-1] = generate_action(-1, n, training_stage_last)
+        # last state{0}-{n-1}
+        #      block{1}-{n}
+        for state in range(0, n):
+            action_dict[state] = generate_action(state, n, training_stage_last)
+        # training stage
+        # last state{n} or dqn gave terminal action
+        action_dict[n] = generate_action(n, n, training_stage_last)
+    else:
+        # last state{-2}
+        action_dict[-2] = generate_action(-2, n, training_stage_last)
+        # last state{-1}
+        # training stage
+        action_dict[-1] = generate_action(-1, n, training_stage_last)
+        # last state{0}-{n-1}
+        #      block{1}-{n}
+        for state in range(0, n):
+            action_dict[state] = generate_action(state, n, training_stage_last)
     return action_dict
 
 

@@ -15,15 +15,21 @@ class QTable:
         self.training_stage_last = config['training_stage_last']
         assert not self.training_stage_last
         self.n = config['n']
-        # key: np.array, state value: dict:key:np.array, with all possible actions, values:Q_values
+        # key: list, state value: dict:key:list, with all possible actions, values:Q_values
         self.Qtable = defaultdict(lambda : defaultdict(lambda: -1.0))
         self.actions = generate_action_dict(self.n, self.training_stage_last)
 
     def get_Q_value(self, state, action):
+        if isinstance(state, np.ndarray):
+            state = state.tolist()
+        if isinstance(action, np.ndarray):
+            action = action.tolist()
         return self.Qtable[state][action]
 
     def get_action(self, state):
         # return (action, max_Q_value)
+        if isinstance(state, np.ndarray):
+            state = state.tolist()
         Q_values = []
         for action in self.Qtable[state].keys():
             Q_values.append(self.get_Q_value(state, action))
@@ -32,6 +38,10 @@ class QTable:
         return action, self.Qtable[state][action]
 
     def set_Q_value(self, state, action, value):
+        if isinstance(state, np.ndarray):
+            state = state.tolist()
+        if isinstance(action, np.ndarray):
+            action = action.tolist()
         self.Qtable[state][action] = value
 
 

@@ -18,7 +18,7 @@ if __name__ == "__main__":
         model_type = input('please input the model type(DQN/Qlearning): ')
     else:
         model_type = config['model']
-    if config['model'] == 'DQN':
+    if model_type == 'DQN':
         print("running DQN")
         train_DQN(config, config_filename.replace('./Config/', '').replace("/", "_").split('.')[0])
     else:

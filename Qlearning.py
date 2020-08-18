@@ -13,6 +13,7 @@ from collections import defaultdict
 class QTable:
     def __init__(self, config):
         self.training_stage_last = config['training_stage_last']
+        assert not self.training_stage_last
         self.n = config['n']
         # key: np.array, state value: dict:key:np.array, with all possible actions, values:Q_values
         self.Qtable = defaultdict(defaultdict(lambda: -1.0))
@@ -103,7 +104,7 @@ def train_QTable(config, config_name):
         # training
         for obs, action, reward, next_obs, done in local_buffer:
             q_S_A = q_table.get_Q_value(obs, action)
-            q_table.set_Q_value(obs, action, q_S_A + lr*(reward + gamma*q_table.get_action(next_obs)[1] - q_S_A))
+            q_table.set_Q_value(obs, action, q_S_A + lr * (reward + gamma * q_table.get_action(next_obs)[1] - q_S_A))
         # epsilon decay
         if episode != 0 and episode % exploration_decay_step == 0:
             exploration_decay_rate *= exploration_decay_rate
@@ -112,6 +113,7 @@ def train_QTable(config, config_name):
         logger(time=episode_time)
         logger.update_data_units()
         logger.flush_log()
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

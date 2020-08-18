@@ -15,33 +15,36 @@ class QTable:
         self.training_stage_last = config['training_stage_last']
         assert not self.training_stage_last
         self.n = config['n']
-        # key: list, state value: dict:key:list, with all possible actions, values:Q_values
-        self.Qtable = defaultdict(lambda : defaultdict(lambda: -1.0))
+        # key: tuple, state value: dict:key:tuple, with all possible actions, values:Q_values
+        self.Qtable = defaultdict(lambda: defaultdict(lambda: 0.0))
         self.actions = generate_action_dict(self.n, self.training_stage_last)
 
     def get_Q_value(self, state, action):
         if isinstance(state, np.ndarray):
-            state = state.tolist()
+            state = tuple(state.tolist())
         if isinstance(action, np.ndarray):
-            action = action.tolist()
+            action = tuple(action.tolist())
         return self.Qtable[state][action]
 
     def get_action(self, state):
         # return (action, max_Q_value)
         if isinstance(state, np.ndarray):
-            state = state.tolist()
+            state = tuple(state.tolist())
         Q_values = []
-        for action in self.Qtable[state].keys():
+        actions = self.actions[state[0]]
+        for action in actions:
+            action = tuple(action.tolist())
             Q_values.append(self.get_Q_value(state, action))
         Q_values = np.array(Q_values)
-        action = np.argmax(Q_values)
-        return action, self.Qtable[state][action]
+        Q_value = np.max(Q_values)
+        action = np.array(list(actions[np.argmax(Q_values)]))
+        return action, Q_value
 
     def set_Q_value(self, state, action, value):
         if isinstance(state, np.ndarray):
-            state = state.tolist()
+            state = tuple(state.tolist())
         if isinstance(action, np.ndarray):
-            action = action.tolist()
+            action = tuple(action.tolist())
         self.Qtable[state][action] = value
 
 
@@ -114,7 +117,8 @@ def train_QTable(config, config_name):
         # training
         for obs, action, reward, next_obs, done in local_buffer:
             q_S_A = q_table.get_Q_value(obs, action)
-            q_table.set_Q_value(obs, action, q_S_A + lr * (reward + gamma * q_table.get_action(next_obs)[1] - q_S_A))
+            if not done:
+                q_table.set_Q_value(obs, action, q_S_A + lr * (reward + gamma * q_table.get_action(next_obs)[1] - q_S_A))
         # epsilon decay
         if episode != 0 and episode % exploration_decay_step == 0:
             exploration_decay_rate *= exploration_decay_rate

@@ -16,7 +16,7 @@ class QTable:
         assert not self.training_stage_last
         self.n = config['n']
         # key: np.array, state value: dict:key:np.array, with all possible actions, values:Q_values
-        self.Qtable = defaultdict(defaultdict(lambda: -1.0))
+        self.Qtable = defaultdict(lambda : defaultdict(lambda: -1.0))
         self.actions = generate_action_dict(self.n, self.training_stage_last)
 
     def get_Q_value(self, state, action):

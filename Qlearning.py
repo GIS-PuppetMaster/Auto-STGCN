@@ -2,6 +2,7 @@ import argparse
 import json
 import mxnet as mx
 import wandb
+import pickle as pk
 from ExperimentDataLogger import *
 from Env import *
 import numpy as np
@@ -127,6 +128,9 @@ def train_QTable(config, config_name):
         for threshold, expl in exploration_list:
             if episode < threshold:
                 exploration = expl
+        if episode % 100 == 0:
+            with open(logger.log_path + 'QTable.pkl', 'wb') as f:
+                pk.dump(q_table, f)
         episode_time = time() - start_time
         print(f"    episode_time_cost:{episode_time}")
         logger(time=episode_time)

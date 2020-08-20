@@ -191,7 +191,7 @@ def train_DQN(config, config_name):
         if double_dqn and episode != 0 and episode % target_net_update_feq == 0:
             target_Q.state_dict().update(Q_net.state_dict())
         if episode != 0 and episode % exploration_decay_step == 0:
-            exploration_decay_rate *= exploration_decay_rate
+            exploration *= exploration_decay_rate
         episode_time = time() - start_time
         print(f"    episode_time_cost:{episode_time}")
         logger(time=episode_time)

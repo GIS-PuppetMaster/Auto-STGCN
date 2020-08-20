@@ -78,6 +78,8 @@ def train_QTable(config, config_name):
     ##############
     #  training  #
     ##############
+    exploration_list = [(1000, 1.0), (1500, 0.9), (2000, 0.8), (2200, 0.7), (2500, 0.6), (2800, 0.5), (3000, 0.4),
+                        (4000, 0.3)]
     episode = 0
     exception_cnt = False
     while episode < episodes or exception_cnt >= episodes:
@@ -94,7 +96,7 @@ def train_QTable(config, config_name):
         while not done:
             if np.random.random() >= exploration:
                 action, _ = q_table.get_action(obs)
-                print(f"state:\n{obs}\naction:{action}    Qnet")
+                print(f"state:\n{obs}\naction:{action}    QTable")
             else:
                 action = generate_random_action(obs, n, training_stage_last)
                 print(f"state:\n{obs}\naction:{action}    random")
@@ -108,7 +110,7 @@ def train_QTable(config, config_name):
         # edit reward and add into buffer
         reward = local_buffer[-1][2] / len(local_buffer)
         if not exception_flag:
-            wandb.log({"episode": episode, "reward": reward}, sync=False)
+            wandb.log({"episode": episode, "reward": reward, "epsilon": exploration}, sync=False)
         print(f"    reward:{reward}")
         for i in range(len(local_buffer)):
             local_buffer[i][2] = reward
@@ -116,12 +118,15 @@ def train_QTable(config, config_name):
         episode += 1
         # training
         for obs, action, reward, next_obs, done in local_buffer:
-            q_S_A = q_table.get_Q_value(obs, action)
             if not done:
-                q_table.set_Q_value(obs, action, q_S_A + lr * (reward + gamma * q_table.get_action(next_obs)[1] - q_S_A))
+                q_S_A = q_table.get_Q_value(obs, action)
+                q_table.set_Q_value(obs, action,
+                                    q_S_A + lr * (reward + gamma * q_table.get_action(next_obs)[1] - q_S_A))
         # epsilon decay
-        if episode != 0 and episode % exploration_decay_step == 0:
-            exploration_decay_rate *= exploration_decay_rate
+        # exploration *= pow(exploration_decay_rate, episode / exploration_decay_step)
+        for threshold, expl in exploration_list:
+            if episode < threshold:
+                exploration = expl
         episode_time = time() - start_time
         print(f"    episode_time_cost:{episode_time}")
         logger(time=episode_time)

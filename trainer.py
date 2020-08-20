@@ -142,7 +142,7 @@ def train_DQN(config, config_name):
         # edit reward and add into buffer
         reward = local_buffer[-1][2] / len(local_buffer)
         if not exception_flag:
-            wandb.log({"episode": episode + step_of_warming_up, "reward": reward}, sync=False)
+            wandb.log({"episode": episode, "reward": reward, "epsilon": exploration}, sync=False)
         print(f"    reward:{reward}")
         for i in range(len(local_buffer)):
             local_buffer[i][2] = reward
@@ -190,8 +190,8 @@ def train_DQN(config, config_name):
         # update target Q_net
         if double_dqn and episode != 0 and episode % target_net_update_feq == 0:
             target_Q.state_dict().update(Q_net.state_dict())
-        if episode != 0 and episode % exploration_decay_step == 0:
-            exploration *= exploration_decay_rate
+        # epsilon decay
+        exploration *= pow(exploration_decay_rate, episode/exploration_decay_step)
         episode_time = time() - start_time
         print(f"    episode_time_cost:{episode_time}")
         logger(time=episode_time)

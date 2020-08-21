@@ -96,7 +96,8 @@ def train_DQN(config, config_name):
             obs = next_obs
             # edit reward and add into buffer
         reward = local_buffer[-1][2] / len(local_buffer)
-        wandb.log({"episode": ep, "reward": reward}, sync=False)
+        if not exception_flag:
+            wandb.log({"episode": ep, "reward": reward, "epsilon": exploration}, sync=False)
         for i in range(len(local_buffer) - 1):
             local_buffer[i][2] = reward / len(local_buffer)
             logger(reward=reward)
@@ -174,7 +175,8 @@ def train_DQN(config, config_name):
         logits = torch.cat(logits, dim=0)
         # train
         l = loss(logits, y)
-        wandb.log({"reward": reward, "epsilon": exploration, "episode": episode + step_of_warming_up, "q_loss": l}, sync=False)
+        if not exception_flag:
+            wandb.log({"reward": reward, "epsilon": exploration, "episode": episode + step_of_warming_up, "q_loss": l}, sync=False)
         optimizer.zero_grad()
         l.backward()
         optimizer.step()

@@ -79,8 +79,8 @@ def train_QTable(config, config_name):
     ##############
     #  training  #
     ##############
-    exploration_list = [(1000, 1.0), (1500, 0.9), (2000, 0.8), (2200, 0.7), (2500, 0.6), (2800, 0.5), (3000, 0.4),
-                        (4000, 0.3)]
+    # exploration_list = [(1000, 1.0), (1500, 0.9), (2000, 0.8), (2200, 0.7), (2500, 0.6), (2800, 0.5), (3000, 0.4),
+    #                     (4000, 0.3)]
     episode = 0
     exception_cnt = False
     while episode < episodes or exception_cnt >= episodes:
@@ -124,10 +124,10 @@ def train_QTable(config, config_name):
                 q_table.set_Q_value(obs, action,
                                     q_S_A + lr * (reward + gamma * q_table.get_action(next_obs)[1] - q_S_A))
         # epsilon decay
-        # exploration *= pow(exploration_decay_rate, episode / exploration_decay_step)
-        for threshold, expl in exploration_list:
-            if episode < threshold:
-                exploration = expl
+        exploration *= pow(exploration_decay_rate, episode / exploration_decay_step)
+        # for threshold, expl in exploration_list:
+        #     if episode < threshold:
+        #         exploration = expl
         if episode % 100 == 0:
             with open(logger.log_path + 'QTable.dill', 'wb') as f:
                 dill.dump(q_table, f)

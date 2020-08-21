@@ -110,8 +110,7 @@ def train_QTable(config, config_name):
             obs = next_obs
         # edit reward and add into buffer
         reward = local_buffer[-1][2] / len(local_buffer)
-        if not exception_flag:
-            wandb.log({"episode": episode, "reward": reward, "epsilon": exploration}, sync=False)
+        wandb.log({"episode": episode, "reward": reward, "epsilon": exploration}, sync=False)
         print(f"    reward:{reward}")
         for i in range(len(local_buffer)):
             local_buffer[i][2] = reward

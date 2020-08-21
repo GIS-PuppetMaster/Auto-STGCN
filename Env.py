@@ -348,7 +348,7 @@ class GNNEnv(gym.Env):
             #         e.args[0]:
             self.logger(train=None, eval=None, test=None)
             traceback.print_exc()
-            return 1e-3, True
+            return -1e-3, True
             # else:
             #     traceback.print_exc()
             #     sys.exit()

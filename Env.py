@@ -340,6 +340,7 @@ class GNNEnv(gym.Env):
             test_loader.reset()
             print(f"    test_result: loss:{test_loss_value}, MAE:{mae}, MAPE:{mape}, RMSE:{rmse}, time:{val_time}")
             self.logger(test=[test_loss_value, mae, mape, rmse, (time() - start_time) / self.test_set_sample_num])
+            self.ctx.empty_cache()
             return reward, False
         except Exception as e:
             self.logger.append_log_file(e.args[0])
@@ -348,6 +349,7 @@ class GNNEnv(gym.Env):
             #         e.args[0]:
             self.logger(train=None, eval=None, test=None)
             traceback.print_exc()
+            self.ctx.empty_cache()
             return -1000, True
             # else:
             #     traceback.print_exc()

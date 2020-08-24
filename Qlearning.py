@@ -6,9 +6,12 @@ import dill
 from ExperimentDataLogger import *
 from Env import *
 import numpy as np
-import torch
 from utils.utils import generate_action_dict
 from collections import defaultdict
+import os
+
+# os.environ['MXNET_GPU_MEM_POOL_RESERVE'] = '50'
+# os.environ['MXNET_CUDNN_AUTOTUNE_DEFAULT'] = '0'
 
 
 class QTable:

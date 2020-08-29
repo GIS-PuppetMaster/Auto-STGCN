@@ -57,7 +57,7 @@ def train_DQN(config, config_name, args):
             file_list.remove('buffer.dill')
         file_list = sorted(file_list)
         Q_net = torch.load(dqn_path + file_list[-1])
-        init_episode=int(file_list[-1].replace('DQN_',''))
+        init_episode=int(file_list[-1].replace('QNet_',''))
     else:
         Q_net = QNet(n, training_stage_last)
     if double_dqn:

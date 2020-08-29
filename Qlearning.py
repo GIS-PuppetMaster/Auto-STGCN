@@ -52,7 +52,7 @@ class QTable:
         self.Qtable[state][action] = value
 
 
-def train_QTable(config, config_name):
+def train_QTable(config, config_name, args):
     #####################
     # set up parameters  #
     ######################
@@ -71,12 +71,17 @@ def train_QTable(config, config_name):
         ctx = mx.gpu(config['ctx'])
     else:
         raise Exception("config_ctx error:" + str(config['ctx']))
-    logger = Logger(config_name, config)
+    logger = Logger(config_name, config,args.resume)
 
     #######################
     # init QTable and Env #
     #######################
-    q_table = QTable(config)
+
+    if args.resume:
+        with open(logger.log_path + 'QTable.dill', 'wb') as f:
+            q_table = dill.load(f)
+    else:
+        q_table = QTable(config)
     env = GNNEnv(config, ctx, logger)
 
     ##############
@@ -144,10 +149,15 @@ def train_QTable(config, config_name):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--config', type=str, default=None)
+    parser.add_argument('--resume', action='store_true', default=False)
+    parser.add_argument('--wandb_id', type=str, default=None)
     args = parser.parse_args()
     config_filename = args.config
     with open(config_filename, 'r') as f:
         config = json.loads(f.read())
     print(json.dumps(config, sort_keys=True, indent=4))
-    wandb.init(project="GNN", config=config)
-    train_QTable(config, config_filename.replace('./Config/', '').replace("/", "_").split('.')[0])
+    if args.resume:
+        wandb.init(project="GNN", config=config, resume=args.wandb_id)
+    else:
+        wandb.init(project="GNN", config=config)
+    train_QTable(config, config_filename.replace('./Config/', '').replace("/", "_").split('.')[0],args)

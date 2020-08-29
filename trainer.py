@@ -10,13 +10,13 @@ from utils.utils import generate_random_action
 import wandb
 from ExperimentDataLogger import Logger
 import argparse
-
+import dill
 os.environ["MXNET_CUDNN_AUTOTUNE_DEFAULT"] = "0"
 
 torch.backends.cudnn.benchmark = True
 
 
-def train_DQN(config, config_name):
+def train_DQN(config, config_name, args):
     ######################
     # set up parameters  #
     ######################
@@ -44,12 +44,18 @@ def train_DQN(config, config_name):
         ctx = mx.gpu(config['ctx'])
     else:
         raise Exception("config_ctx error:" + str(config['ctx']))
-    logger = Logger(config_name, config)
+    logger = Logger(config_name, config, args.resume)
     #####################
     #  build dqn model  #
     #####################
     Q_net = QNet(n, training_stage_last)
-
+    dqn_path = './Log/' + config_name + '/DQN/'
+    if args.resume:
+        file_list = os.listdir(dqn_path)
+        if 'buffer.dill' in file_list:
+            file_list.remove('buffer.dill')
+        file_list = sorted(file_list)
+        QNet.load_state_dict(torch.load(dqn_path+file_list[-1]))
     if double_dqn:
         target_Q = QNet(n, training_stage_last)
         target_Q.state_dict().update(Q_net.state_dict())
@@ -60,10 +66,15 @@ def train_DQN(config, config_name):
     else:
         raise Exception(f"Wrong opt type:{opt}, only support \"adam\" or \"RMSprop\"")
     loss = torch.nn.L1Loss()
-    if prioritized_replay:
-        replay_buffer = PrioritizedReplayBuffer(size=replay_buffer_size, alpha=prioritized_replay_alpha)
+    if not args.resume:
+        if prioritized_replay:
+            replay_buffer = PrioritizedReplayBuffer(size=replay_buffer_size, alpha=prioritized_replay_alpha)
+        else:
+            replay_buffer = ReplayBuffer(replay_buffer_size)
     else:
-        replay_buffer = ReplayBuffer(replay_buffer_size)
+        with open(dqn_path+'buffer.dill', 'rb') as f:
+            replay_buffer = dill.load(f)
+        
 
     ###################
     #  build GNN Env  #
@@ -196,6 +207,7 @@ def train_DQN(config, config_name):
         logger(time=episode_time)
         if episode % 10 == 0:
             logger.save_DQN(Q_net)
+            logger.save_buffer(replay_buffer)
         logger.update_data_units()
         logger.flush_log()
 
@@ -203,10 +215,15 @@ def train_DQN(config, config_name):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--config', type=str, default=None)
+    parser.add_argument('--resume', action='store_true', default=False)
+    parser.add_argument('--wandb_id', type=str, default=None)
     args = parser.parse_args()
     config_filename = args.config
     with open(config_filename, 'r') as f:
         config = json.loads(f.read())
     print(json.dumps(config, sort_keys=True, indent=4))
-    wandb.init(project="GNN", config=config)
-    train_DQN(config, config_filename.replace('./Config/', '').replace("/", "_").split('.')[0])
+    if args.resume:
+        wandb.init(project="GNN", config=config, resume=args.wandb_id)
+    else:
+        wandb.init(project="GNN", config=config)
+    train_DQN(config, config_filename.replace('./Config/', '').replace("/", "_").split('.')[0], args)

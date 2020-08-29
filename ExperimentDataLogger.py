@@ -6,10 +6,11 @@ import mxnet as mx
 import logging
 import pathlib
 import json
+import dill
 
 
 class Logger:
-    def __init__(self, log_name, config, log_path="./Log/"):
+    def __init__(self, log_name, config, resume, log_path="./Log/"):
         self.episode = 0
         # data unit: [episode]=[states, actions, train, eval, test, reward, time]
         # states: list(list())
@@ -27,7 +28,7 @@ class Logger:
             os.makedirs(self.log_path)
             os.makedirs(self.log_path + "GNN")
             os.makedirs(self.log_path + "DQN")
-        else:
+        elif not resume:
             raise Exception(f"log_path:{log_path}, log_name:{log_name} already exists")
         pathlib.Path(self.log_path + "logger.log").touch()
         # backup config
@@ -71,6 +72,10 @@ class Logger:
 
     def save_DQN(self, model):
         torch.save(model, self.log_path + f"DQN/QNet_{self.episode}")
+
+    def save_buffer(self, buffer):
+        with open(self.log_path + "DQN/buffer.dill", "wb") as f:
+            dill.dump(buffer, f)
 
     def __call__(self, flush=False, *args, **kwargs):
         if "state" in kwargs.keys():

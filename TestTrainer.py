@@ -44,6 +44,7 @@ def train_DQN(config, config_name):
         ctx = mx.gpu(config['ctx'])
     else:
         raise Exception("config_ctx error:" + str(config['ctx']))
+    logger = Logger(config_name, config)
     #####################
     #  build dqn model  #
     #####################
@@ -184,6 +185,7 @@ def train_DQN(config, config_name):
         # epsilon decay
         exploration *= pow(exploration_decay_rate, episode / exploration_decay_step)
         episode_time = time() - start_time
+        logger.save_buffer(replay_buffer)
         print(f"    episode_time_cost:{episode_time}")
 
 

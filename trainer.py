@@ -87,8 +87,8 @@ def train_DQN(config, config_name, args):
     ################
     #  warming up  #
     ################
+    step_of_warming_up = warm_up_batches
     if not args.resume:
-        step_of_warming_up = warm_up_batches
         ep = 0
         while ep < step_of_warming_up:
             logger.set_episode(ep)

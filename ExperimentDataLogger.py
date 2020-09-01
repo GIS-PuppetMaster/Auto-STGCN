@@ -66,9 +66,10 @@ class Logger:
     def save_GNN(self, model, model_structure, reward):
         # only save model when get a ner best model
         if reward > self.max_reward:
-            model.save_parameters(self.log_path + f"GNN/GNN_model_{self.episode}.params")
+            model.save_parameters(self.log_path + f"GNN/best_GNN_model.params")
             with open(self.log_path + "GNN/model_structure.txt", "w") as f:
                 f.write(str(model_structure) + "\n")
+            self.max_reward = reward
 
     def save_DQN(self, model):
         torch.save(model, self.log_path + f"DQN/QNet_{self.episode}")

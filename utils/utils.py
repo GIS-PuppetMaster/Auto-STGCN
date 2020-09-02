@@ -337,7 +337,7 @@ def generate_random_action(obs, n, training_stage_last):
                              np.random.randint(low=1, high=4)])
         elif last_state == -1:
             return np.array([np.random.randint(low=1, high=3),
-                             np.random.randint(low=1, high=4),
+                             np.random.randint(low=1, high=3),
                              np.random.randint(low=1, high=4),
                              np.random.randint(low=1, high=3)])
         else:

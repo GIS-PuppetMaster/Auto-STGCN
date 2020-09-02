@@ -50,22 +50,26 @@ class Model(HybridBlock):
                         temp = IS1()
                         self.layer_list[0] = temp
                         self.register_child(temp)
-                    else:
+                    elif action[0]==2:
                         self.layer_list[0] = None
+                    else:
+                        raise Exception(f'IS error, got:{action[0]}, with action_trajectory:{self.action_trajectory}')
 
                     self.filter_size = action[2]
 
                     if action[1] == 1:
-                        self.output_structure = OS1(self.num_of_vertices, self.batch_size)
-                    elif action[1] == 2:
                         self.output_structure = OS2(self.filter_size)
-                    else:
+                    elif action[1]==2:
                         self.output_structure = OS3(self.num_of_vertices)
+                    else:
+                        raise Exception(f'OS error, got:{action[1]}, with action_trajectory:{self.action_trajectory}')
 
                     if action[3] == 1:
                         self.MOBF = MOBF1(self.num_of_end_block, self.num_of_vertices)
-                    else:
+                    elif action[3]==2:
                         self.MOBF = MOBFEmbedding(self.num_of_end_block, self.num_of_vertices, False)
+                    else:
+                        raise Exception(f'MOBF error, got:{action[3]}, with action_trajectory:{self.action_trajectory}')
                 elif i <= self.n + 1:
                     # current_state = 0/1...n-1, take action to decide the state 1...n
                     if action[0] == 1:
@@ -104,11 +108,12 @@ class Model(HybridBlock):
 
                     if action[2] == 1:
                         # FES1
-                        block_unit.append(FES1(order_of_cheb=self.order_of_cheb, Kt=self.filter_size, channels=[64, 16, 64],
-                                    num_of_vertices=self.num_of_vertices,
-                                    keep_prob=1.0,
-                                    batch_size=self.batch_size,
-                                    activation='GLU'))
+                        block_unit.append(
+                            FES1(order_of_cheb=self.order_of_cheb, Kt=self.filter_size, channels=[64, 16, 64],
+                                 num_of_vertices=self.num_of_vertices,
+                                 keep_prob=1.0,
+                                 batch_size=self.batch_size,
+                                 activation='GLU'))
                         self.register_child(block_unit[-1])
                     elif action[2] == 2:
                         block_unit.append(FES2())

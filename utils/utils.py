@@ -220,7 +220,7 @@ def generate_action(state, n, training_stage_last):
         if state == -1:
             # input state (last state): state{-1}
             for i in range(1, 3):
-                for j in range(1, 4):
+                for j in range(1, 3):
                     for k in range(1, 4):
                         for l in range(1, 3):
                             action_list.append([i, j, k, l, 0])
@@ -253,19 +253,19 @@ def generate_action(state, n, training_stage_last):
     else:
         if state == -2:
             # last state{-2}
-            for i in range(1, 3):
-                for j in range(1, 4):
-                    for k in range(1, 4):
-                        for l in range(1, 3):
-                            action_list.append([i, j, k, l])
-            return np.array(action_list)
-        elif state == -1:
-            # last state{-1}
             # training stage
             for i in range(1, 3):
                 for j in range(1, 4):
                     for k in range(1, 4):
                         for l in range(1, 4):
+                            action_list.append([i, j, k, l])
+            return np.array(action_list)
+        elif state == -1:
+            # last state{-1}
+            for i in range(1, 3):
+                for j in range(1, 3):
+                    for k in range(1, 4):
+                        for l in range(1, 2):
                             action_list.append([i, j, k, l])
             return np.array(action_list)
         elif 0 <= state < n:
@@ -334,12 +334,12 @@ def generate_random_action(obs, n, training_stage_last):
             return np.array([np.random.randint(low=1, high=3),
                              np.random.randint(low=1, high=4),
                              np.random.randint(low=1, high=4),
-                             np.random.randint(low=1, high=3)])
+                             np.random.randint(low=1, high=4)])
         elif last_state == -1:
             return np.array([np.random.randint(low=1, high=3),
                              np.random.randint(low=1, high=4),
                              np.random.randint(low=1, high=4),
-                             np.random.randint(low=1, high=4)])
+                             np.random.randint(low=1, high=3)])
         else:
             if np.random.randint(low=0, high=2) == 0 or last_state == 0:
                 return np.array([np.random.randint(low=1, high=5),

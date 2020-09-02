@@ -6,9 +6,11 @@ import mxnet as mx
 import numpy as np
 import os
 
+from ExperimentDataLogger import Logger
+
 os.environ["MXNET_CUDNN_AUTOTUNE_DEFAULT"] = "0"
 
-config_filename = "./Config/test_env.json"
+config_filename = "./Config/PEMS03/experiment1.json"
 with open(config_filename, 'r') as f:
     config = json.loads(f.read())
 print(json.dumps(config, sort_keys=True, indent=4))
@@ -19,8 +21,8 @@ elif isinstance(config['ctx'], int):
     ctx = mx.gpu(config['ctx'])
 else:
     raise Exception("config_ctx error:" + str(config['ctx']))
-
-env = GNNEnv(config, ctx)
+logger = Logger('test', config, None, larger_better=True)
+env = GNNEnv(config, ctx, logger)
 for j in range(10):
     action_list = []
     if config['training_stage_last']:
@@ -48,13 +50,12 @@ for j in range(10):
         action_list.append([np.random.randint(low=1, high=3),
                             np.random.randint(low=1, high=4),
                             np.random.randint(low=1, high=4),
-                            np.random.randint(low=1, high=3),
-                            np.random.randint(low=0, high=2)])
-        action_list.append([np.random.randint(low=1, high=3),
-                            np.random.randint(low=1, high=4),
-                            np.random.randint(low=1, high=4),
-                            np.random.randint(low=1, high=4),
-                            np.random.randint(low=0, high=2)])
+                            np.random.randint(low=1, high=4)])
+        # action_list.append([np.random.randint(low=1, high=3),
+        #                     np.random.randint(low=1, high=4),
+        #                     np.random.randint(low=1, high=4),
+        #                     np.random.randint(low=1, high=3)])
+        action_list.append([1, 1, 1, 3])
         for i in range(config['n']):
             if i == 0:
                 pre_block = 0
@@ -63,14 +64,13 @@ for j in range(10):
             action_list.append([np.random.randint(low=1, high=5),
                                 np.random.randint(low=1, high=4),
                                 np.random.randint(low=1, high=5),
-                                pre_block,
-                                np.random.randint(low=0, high=2)])
-    action_list = [[1, 3, 3, 1, 0],
-                   [3, 1, 1, 0, 0],
-                   [1, 3, 4, 1, 0],
-                   [2, 3, 1, 2, 0],
-                   [3, 2, 2, 3, 0],
-                   [2, 3, 2, 3, 0]]
+                                pre_block])
+    # action_list = [[1, 3, 3, 1, 0],
+    #                [3, 1, 1, 0, 0],
+    #                [1, 3, 4, 1, 0],
+    #                [2, 3, 1, 2, 0],
+    #                [3, 2, 2, 3, 0],
+    #                [2, 3, 2, 3, 0]]
     actions = np.array(action_list)
     print("action:\n" + str(actions))
     start = time()

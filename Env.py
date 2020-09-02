@@ -63,9 +63,7 @@ class GNNEnv(gym.Env):
         for batch_size in self.batch_size_option:
             loaders = []
             true_values = []
-            transformer = MinMaxTransformer()
-            self.transformer[batch_size] = transformer
-            for idx, (x, y) in enumerate(generate_data(self.time_series_filename, transformer=transformer)):
+            for idx, (x, y) in enumerate(generate_data(self.time_series_filename)):
                 if idx == 0:
                     self.train_set_sample_num = x.shape[0]
                 elif idx == 1:
@@ -74,7 +72,7 @@ class GNNEnv(gym.Env):
                     self.test_set_sample_num = x.shape[0]
                 y = y.squeeze(axis=-1)
                 print(x.shape, y.shape)
-                self.logger.append_log_file(str((x.shape,y.shape)))
+                self.logger.append_log_file(str((x.shape, y.shape)))
                 loaders.append(
                     mx.io.NDArrayIter(
                         x, y,
@@ -191,7 +189,6 @@ class GNNEnv(gym.Env):
 
         # must set batch_size before init model
         batch_size = self.batch_size_option[action[1] - 1]
-        transformer = self.transformer[batch_size]
         self.config['batch_size'] = batch_size
         model = Model(self.action_trajectory, self.config, self.ctx, self.adj_SIPM)
         model.initialize(ctx=self.ctx)
@@ -223,7 +220,6 @@ class GNNEnv(gym.Env):
             start_time = time()
             train_loader, val_loader, test_loader = self.data[batch_size]
             for epoch in range(self.config['epochs']):
-                loss_value_raw = 0
                 loss_value = 0
                 mae = 0
                 rmse = 0
@@ -242,31 +238,22 @@ class GNNEnv(gym.Env):
                         return
                     l.backward()
                     opt.step(batch_size)
-                    loss_value_raw += l.mean().asscalar()
-                    # 反标准化
-                    train_y_min = transformer.y_data_set_min
-                    train_y_max = transformer.y_data_set_max
-                    output = output * (train_y_max - train_y_min) + train_y_min
-                    y = y * (transformer.y_transformer_info[0][1] - transformer.y_transformer_info[0][0]) + \
-                        transformer.y_transformer_info[0][0]
                     loss_value += loss(output, y).mean().asscalar()
                     mae += MAE(y, output)
                     rmse += RMSE(y, output)
                     mape += masked_mape_np(y, output)
                 train_loader.reset()
-                loss_value_raw /= train_batch_num
                 loss_value /= train_batch_num
                 mae /= train_batch_num
                 rmse /= train_batch_num
                 mape /= train_batch_num
                 self.logger(
                     train=[epoch, loss_value, mae, mape, rmse, (time() - start_time) / self.train_set_sample_num])
-                print(f"    epoch:{epoch} ,normal_loss:{loss_value_raw:.6f} ,loss:{loss_value}")
+                print(f"    epoch:{epoch} ,loss:{loss_value}")
             model_structure = deepcopy(self.action_trajectory)
             model_structure.append(action)
             # eval
             eval_loss_value = 0
-            eval_loss_value_raw = 0
             eval_batch_num = 0
             mae = 0
             rmse = 0
@@ -279,14 +266,6 @@ class GNNEnv(gym.Env):
                 X, y = X.as_in_context(self.ctx), y.as_in_context(self.ctx)
                 y = y.astype('float32')
                 output = model(X)
-                eval_loss_value_raw += loss(output, y).mean().asscalar()
-                # 反标准化
-                eval_y_min = transformer.y_data_set_min
-                eval_y_max = transformer.y_data_set_max
-                output = output * (eval_y_max - eval_y_min) + eval_y_min
-                y = y * (transformer.y_transformer_info[1][1] - transformer.y_transformer_info[1][
-                    0]) + \
-                    transformer.y_transformer_info[1][0]
                 eval_loss_value += loss(output, y).mean().asscalar()
                 mae += MAE(y, output)
                 rmse += RMSE(y, output)
@@ -300,46 +279,38 @@ class GNNEnv(gym.Env):
             print(f"    eval_result: loss:{eval_loss_value}, MAE:{mae}, MAPE:{mape}, RMSE:{rmse}, time:{val_time}")
             val_loader.reset()
             # get reward
-            reward = -(mae - np.power(np.e, -19) * np.log2(self.max_time/raw_val_time))
+            reward = -(mae - np.power(np.e, -19) * np.log2(self.max_time / raw_val_time))
             if reward < -1e3:
-                return reward/100, True
+                return reward / 100, True
             else:
                 reward /= 100
             self.logger(eval=[eval_loss_value, mae, mape, rmse, val_time])
-            self.logger.save_GNN(model, model_structure, reward/len(self.action_trajectory)+1)
+            self.logger.save_GNN(model, model_structure, reward / len(self.action_trajectory) + 1)
             # test
-            test_loss_value = 0
-            test_loss_value_raw = 0
-            test_batch_num = 0
-            mae = 0
-            rmse = 0
-            mape = 0
-            start_time = time()
-            for X in test_loader:
-                y = X.label[0]
-                X = X.data[0]
-                test_batch_num += 1
-                X, y = X.as_in_context(self.ctx), y.as_in_context(self.ctx)
-                y = y.astype('float32')
-                output = model(X)
-                test_loss_value_raw += loss(output, y).mean().asscalar()
-                # 反标准化
-                test_y_min = transformer.y_data_set_min
-                test_y_max = transformer.y_data_set_max
-                output = output * (test_y_max - test_y_min) + test_y_min
-                y = y * (transformer.y_transformer_info[2][1] - transformer.y_transformer_info[2][0]) + \
-                    transformer.y_transformer_info[2][0]
-                test_loss_value += loss(output, y).mean().asscalar()
-                mae += MAE(y, output)
-                rmse += RMSE(y, output)
-                mape += masked_mape_np(y, output)
-            test_loss_value /= test_batch_num
-            mae /= test_batch_num
-            rmse /= test_batch_num
-            mape /= test_batch_num
-            test_loader.reset()
-            print(f"    test_result: loss:{test_loss_value}, MAE:{mae}, MAPE:{mape}, RMSE:{rmse}, time:{val_time}")
-            self.logger(test=[test_loss_value, mae, mape, rmse, (time() - start_time) / self.test_set_sample_num])
+            # test_loss_value = 0
+            # test_batch_num = 0
+            # mae = 0
+            # rmse = 0
+            # mape = 0
+            # start_time = time()
+            # for X in test_loader:
+            #     y = X.label[0]
+            #     X = X.data[0]
+            #     test_batch_num += 1
+            #     X, y = X.as_in_context(self.ctx), y.as_in_context(self.ctx)
+            #     y = y.astype('float32')
+            #     output = model(X)
+            #     test_loss_value += loss(output, y).mean().asscalar()
+            #     mae += MAE(y, output)
+            #     rmse += RMSE(y, output)
+            #     mape += masked_mape_np(y, output)
+            # test_loss_value /= test_batch_num
+            # mae /= test_batch_num
+            # rmse /= test_batch_num
+            # mape /= test_batch_num
+            # test_loader.reset()
+            # print(f"    test_result: loss:{test_loss_value}, MAE:{mae}, MAPE:{mape}, RMSE:{rmse}, time:{val_time}")
+            # self.logger(test=[test_loss_value, mae, mape, rmse, (time() - start_time) / self.test_set_sample_num])
             return reward, False
         except Exception as e:
             self.logger.append_log_file(e.args[0])

@@ -249,11 +249,12 @@ class TrainEnv(GNNEnv):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', type=str, default=None)
+    parser.add_argument('--config', type=str, default=None)
     parser.add_argument('--resume', action='store_true', default=False)
     parser.add_argument('--wandb_id', type=str, default=None)
     args = parser.parse_args()
     model_filename = args.model
-    config_filename = './Config/PEMS03/experiment1.json'
+    config_filename = args.config
     with open(config_filename, 'r') as f:
         config = json.loads(f.read())
     with open(model_filename, 'r') as f:

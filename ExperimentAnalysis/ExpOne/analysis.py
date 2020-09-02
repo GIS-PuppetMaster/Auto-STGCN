@@ -10,7 +10,7 @@ for name, logger in log.items():
     data_unit = np.array(logger.data_unit)
     arr = []
     for data in data_unit:
-        arr.append([data[1], data[-2][-1]])
+        arr.append([data[1], data[-2][-1], data[0], data[2],data[3],data[4], data[6]])
     arr = np.array(arr)
     arr = arr[np.argsort(arr[:, 1])]
     print(name)

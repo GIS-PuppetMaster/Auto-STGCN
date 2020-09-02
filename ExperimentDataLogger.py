@@ -10,7 +10,7 @@ import dill
 
 
 class Logger:
-    def __init__(self, log_name, config, resume, log_path="./Log/"):
+    def __init__(self, log_name, config, resume, log_path="./Log/", larger_better=True):
         self.episode = 0
         # data unit: [episode]=[states, actions, train, eval, test, reward, time]
         # states: list(list())
@@ -22,7 +22,11 @@ class Logger:
         self.log_path = log_path + log_name + "/"
         self.data_unit = []
         self.data_buffer = [[], [], [], [], [], [], None]
-        self.max_reward = -float("inf")
+        self.larger_better = larger_better
+        if larger_better:
+            self.metric = -float("inf")
+        else:
+            self.metric = float("inf")
         self.config = config
         if not os.path.exists(self.log_path):
             os.makedirs(self.log_path)
@@ -63,13 +67,17 @@ class Logger:
         with open(self.log_path + "logger.log", "a") as f:
             f.write(string + "\n")
 
-    def save_GNN(self, model, model_structure, reward):
+    def save_GNN(self, model, model_structure, metric):
         # only save model when get a ner best model
-        if reward > self.max_reward:
+        if (self.larger_better and metric > self.metric) or (not self.larger_better and metric < self.metric):
             model.save_parameters(self.log_path + f"GNN/best_GNN_model.params")
             with open(self.log_path + "GNN/model_structure.txt", "w") as f:
                 f.write(str(model_structure) + "\n")
-            self.max_reward = reward
+            self.metric = metric
+        if self.episode % 10 == 0:
+            model.save_parameters(self.log_path + f"GNN/GNN_model_{self.episode}.params")
+            with open(self.log_path + "GNN/model_structure.txt", "w") as f:
+                f.write(str(model_structure) + "\n")
 
     def save_DQN(self, model):
         torch.save(model, self.log_path + f"DQN/QNet_{self.episode}")
@@ -113,8 +121,8 @@ class Logger:
                 reward = reward[-1]
             with open(self.log_path + "logger.log", "a") as f:
                 f.write(f"    reward:{reward}\n")
-            if reward > self.max_reward:
-                self.max_reward = reward
+            if reward > self.metric:
+                self.metric = reward
                 info = f"    best_GNN_model:\n        reward:{reward}\n        actions:{self.data_buffer[1]}\n"
                 with open(self.log_path + "logger.log", "a") as f:
                     f.write(info)

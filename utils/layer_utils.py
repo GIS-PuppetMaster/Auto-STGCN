@@ -424,6 +424,7 @@ class Gconv(HybridBlock):
         ----------
         shape is (batch_size * time_step, num_of_vertices, c_out)
         '''
+        self.batch_size = x.shape[0]
         if spatial_At is not None:
             spatial_At = nd.repeat(spatial_At, repeats=self.order_of_cheb, axis=-1)
             cheb_polys = cheb_polys * spatial_At

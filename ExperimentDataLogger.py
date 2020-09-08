@@ -74,10 +74,12 @@ class Logger:
             with open(self.log_path + "GNN/model_structure.txt", "w") as f:
                 f.write(str(model_structure) + "\n")
             self.metric = metric
+            print('updated best GNN params')
         if self.episode % 10 == 0:
             model.save_parameters(self.log_path + f"GNN/GNN_model_{self.episode}.params")
             with open(self.log_path + "GNN/model_structure.txt", "w") as f:
                 f.write(str(model_structure) + "\n")
+            print(f'updated GNN params with checkpoint:{self.episode}')
 
     def save_DQN(self, model):
         torch.save(model, self.log_path + f"DQN/QNet_{self.episode}")

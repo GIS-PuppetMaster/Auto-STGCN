@@ -17,7 +17,7 @@ from Model import Model
 from Env import GNNEnv
 from utils.utils import generate_data
 from utils.layer_utils import *
-
+from copy import deepcopy
 
 class TrainEnv(GNNEnv):
     def __init__(self, config, ctx, logger, test=False):
@@ -146,7 +146,13 @@ class TrainEnv(GNNEnv):
         train_loader, val_loader, test_loader = self.data[batch_size]
         model_structure = deepcopy(self.action_trajectory)
         model_structure.append(action)
-        for epoch in range(200):
+        test_mae = []
+        test_rmse = []
+        test_mape = []
+        test_times = []
+        best_mae = float('inf')
+        best_epoch = 0
+        for epoch in range(100):
             self.logger.set_episode(epoch)
             loss_value = 0
             mae = 0
@@ -240,12 +246,30 @@ class TrainEnv(GNNEnv):
             mae /= test_batch_num
             rmse /= test_batch_num
             mape /= test_batch_num
+            test_time = (time() - start_time) / self.test_set_sample_num
+            test_mae.append(mae)
+            test_mape.append(mape)
+            test_rmse.append(rmse)
+            test_times.append(test_time)
             test_loader.reset()
             print(f"    test_result: loss:{test_loss_value}, MAE:{mae}, MAPE:{mape}, RMSE:{rmse}")
-            self.logger(test=[test_loss_value, mae, mape, rmse, (time() - start_time) / self.test_set_sample_num])
+            self.logger(test=[test_loss_value, mae, mape, rmse, test_time])
             wandb.log({'test_loss': test_loss_value, 'test_mae': mae, 'test_mape': mape, 'test_rmse': rmse}, sync=False)
             self.logger.update_data_units()
             self.logger.flush_log()
+            if mae < best_mae:
+                best_mae = mae
+                best_epoch = epoch
+            if epoch - best_epoch > 10:
+                print(f'early stop at epoch:{epoch}')
+                break
+        mae_arr = np.array(test_mae)
+        mape_arr = np.array(test_mape)
+        rmse_arr = np.array(test_rmse)
+        time_arr = np.array(test_times)
+        best_idx = np.argmin(mae_arr)
+        res = [mae_arr[best_idx], mape_arr[best_idx], rmse_arr[best_idx], time_arr[best_idx]]
+        return res
 
 
 if __name__ == "__main__":
@@ -273,7 +297,14 @@ if __name__ == "__main__":
     else:
         raise Exception("config_ctx error:" + str(config['ctx']))
     config_name = config_filename.replace('./Config/', '').replace("/", "_").split('.')[0] + '_' + \
-                  model_filename.replace('./Config/', '').replace("/", "_").split('.')[0]
+                  model_filename.replace('./Config/', '').replace("/", "_").split('.')[0] + '_test'
     logger = Logger(config_name, config, args.resume, larger_better=False)
-    env = TrainEnv(config, ctx, logger)
-    env.train_model(actions)
+    res = []
+    for i in range(5):
+        env = TrainEnv(config, ctx, logger)
+        res.append(env.train_model(deepcopy(actions)))
+    res = np.array(res)
+    logger.append_log_file(f'mean:{res.mean(axis=0)}')
+    logger.append_log_file(f'mean:{res.std(axis=0)}')
+
+

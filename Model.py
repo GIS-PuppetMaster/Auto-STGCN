@@ -158,7 +158,7 @@ class Model(HybridBlock):
                         data = layer(data, self.adj_choosed, self.laplace_weights)
                     elif isinstance(layer, FES3):
                         L_tilde = scaled_Laplacian(self.adj_choosed)
-                        cheb_polynomials = [nd.array(i, ctx=self.ctx)
+                        cheb_polynomials = [nd.array(i)
                                             for i in cheb_polynomial(L_tilde, self.config['K'])]
                         data = layer(data, cheb_polynomials, self.laplace_weights)
                     elif isinstance(layer, FES4):

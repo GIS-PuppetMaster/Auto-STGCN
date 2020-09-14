@@ -297,14 +297,14 @@ if __name__ == "__main__":
     else:
         raise Exception("config_ctx error:" + str(config['ctx']))
     config_name = config_filename.replace('./Config/', '').replace("/", "_").split('.')[0] + '_' + \
-                  model_filename.replace('./Config/', '').replace("/", "_").split('.')[0] + '_test'
+                  model_filename.replace('./Config/', '').replace("/", "_").split('.')[0]
     logger = Logger(config_name, config, args.resume, larger_better=False)
     res = []
-    for i in range(5):
+    for i in range(2):
         env = TrainEnv(config, ctx, logger)
         res.append(env.train_model(deepcopy(actions)))
+        logger.append_log_file(f'res:{res}')
     res = np.array(res)
     logger.append_log_file(f'mean:{res.mean(axis=0)}')
-    logger.append_log_file(f'mean:{res.std(axis=0)}')
-
+    logger.append_log_file(f'std:{res.std(axis=0)}')
 

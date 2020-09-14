@@ -1,14 +1,12 @@
 import argparse
-import wandb
 import json
 from time import time
 
 from gym import spaces
-import mxnet.gluon.utils as gutils
+
 from utils.math_utils import MAE, RMSE, masked_mape_np
 from mxnet import autograd
 import traceback
-import wandb
 from copy import deepcopy
 from mxnet.lr_scheduler import FactorScheduler
 import mxnet as mx
@@ -19,7 +17,8 @@ from utils.utils import generate_data
 from utils.layer_utils import *
 from copy import deepcopy
 
-class TrainEnv(GNNEnv):
+
+class TestEnv(GNNEnv):
     def __init__(self, config, ctx, logger, test=False):
         self.ctx = ctx
         self.config = config
@@ -141,133 +140,27 @@ class TrainEnv(GNNEnv):
                 warmup_steps=global_train_steps
             )
             opt = mx.gluon.Trainer(model.collect_params(), opt_option[action[3] - 1], {'lr_scheduler': lr_sch})
-        # train
-        start_time = time()
+        # test
         train_loader, val_loader, test_loader = self.data[batch_size]
-        model_structure = deepcopy(self.action_trajectory)
-        model_structure.append(action)
-        test_mae = []
-        test_rmse = []
-        test_mape = []
-        test_times = []
-        best_mae = float('inf')
-        best_epoch = 0
-        for epoch in range(100):
-            self.logger.set_episode(epoch)
-            loss_value = 0
-            mae = 0
-            rmse = 0
-            mape = 0
-            train_batch_num = 0
-            for X in train_loader:
-                y = X.label[0]
-                X = X.data[0]
-                train_batch_num += 1
-                y = y.astype('float32')
-                X = gutils.split_and_load(X, self.ctx, even_split=False)
-                y = gutils.split_and_load(y, self.ctx, even_split=False)
-                with autograd.record():
-                    outputs = [model(X_slice) for X_slice in X]
-                    losses = [loss(o, l) for o, l in zip(outputs, y)]
-                if self.test:
-                    return
-                autograd.backward(losses)
-                opt.step(batch_size)
-                for output, l in zip(outputs,y):
-                    loss_value += loss(output, l).mean().asscalar()
-                    mae += MAE(l, output)
-                    rmse += RMSE(l, output)
-                    mape += masked_mape_np(l, output)
-            train_loader.reset()
-            # loss_value_raw /= train_batch_num
-            loss_value /= train_batch_num
-            mae /= train_batch_num
-            rmse /= train_batch_num
-            mape /= train_batch_num
-            train_time = (time() - start_time) / self.train_set_sample_num
-            self.logger(
-                train=[epoch, loss_value, mae, mape, rmse, train_time])
-            print(f"    epoch:{epoch}  ,loss:{loss_value}, MAE:{mae}, MAPE:{mape}, RMSE:{rmse}, time:{train_time}")
-            wandb.log(
-                {'epcoh': epoch, 'train_loss': loss_value, 'train_mae': mae, 'train_mape': mape, 'train_rmse': rmse,
-                 'epoch_train_time': train_time}, sync=False)
-            # eval
-            eval_loss_value = 0
-            eval_batch_num = 0
-            mae = 0
-            rmse = 0
-            mape = 0
-            val_time = time()
-            for X in val_loader:
-                y = X.label[0]
-                X = X.data[0]
-                eval_batch_num += 1
-                y = y.astype('float32')
-                X = gutils.split_and_load(X, self.ctx, even_split=False)
-                y = gutils.split_and_load(y, self.ctx, even_split=False)
-                outputs = [model(X_slice) for X_slice in X]
-                for output, l in zip(outputs, y):
-                    mae += MAE(l, output)
-                    rmse += RMSE(l, output)
-                    mape += masked_mape_np(l, output)
-            eval_loss_value /= eval_batch_num
-            mae /= eval_batch_num
-            rmse /= eval_batch_num
-            mape /= eval_batch_num
-            raw_val_time = time() - val_time
-            val_time = raw_val_time / self.eval_set_sample_num
-            print(f"    eval_result: loss:{eval_loss_value}, MAE:{mae}, MAPE:{mape}, RMSE:{rmse}, time:{val_time}")
-            val_loader.reset()
-            self.logger(eval=[eval_loss_value, mae, mape, rmse, val_time])
-            wandb.log({'epcoh': epoch, 'eval_loss': loss_value, 'eval_mae': mae, 'eval_mape': mape, 'eval_rmse': rmse,
-                       'epoch_eval_time': val_time}, sync=False)
-            self.logger.save_GNN(model, model_structure, mae)
-            # test
-            test_loss_value = 0
+        test_time = []
+        for i in range(5):
             test_batch_num = 0
-            mae = 0
-            rmse = 0
-            mape = 0
-            start_time = time()
+            times = 0
             for X in test_loader:
-                y = X.label[0]
                 X = X.data[0]
                 test_batch_num += 1
-                y = y.astype('float32')
-                X = gutils.split_and_load(X, self.ctx, even_split=False)
-                y = gutils.split_and_load(y, self.ctx, even_split=False)
-                outputs = [model(X_slice) for X_slice in X]
-                for output, l in zip(outputs, y):
-                    mae += MAE(l, output)
-                    rmse += RMSE(l, output)
-                    mape += masked_mape_np(l, output)
-            test_loss_value /= test_batch_num
-            mae /= test_batch_num
-            rmse /= test_batch_num
-            mape /= test_batch_num
-            test_time = (time() - start_time) / self.test_set_sample_num
-            test_mae.append(mae)
-            test_mape.append(mape)
-            test_rmse.append(rmse)
-            test_times.append(test_time)
+                X = X.as_in_context(self.ctx)
+                start_time = time()
+                model(X)
+                times += (time() - start_time)
             test_loader.reset()
-            print(f"    test_result: loss:{test_loss_value}, MAE:{mae}, MAPE:{mape}, RMSE:{rmse}")
-            self.logger(test=[test_loss_value, mae, mape, rmse, test_time])
-            wandb.log({'test_loss': test_loss_value, 'test_mae': mae, 'test_mape': mape, 'test_rmse': rmse}, sync=False)
+            test_time.append(times)
+            print(f"    test_result: time:{times}")
+            self.logger(test=[None, None, None, None, times])
             self.logger.update_data_units()
             self.logger.flush_log()
-            if mae < best_mae:
-                best_mae = mae
-                best_epoch = epoch
-            if epoch - best_epoch > 15:
-                print(f'early stop at epoch:{epoch}')
-                break
-        mae_arr = np.array(test_mae)
-        mape_arr = np.array(test_mape)
-        rmse_arr = np.array(test_rmse)
-        time_arr = np.array(test_times)
-        best_idx = np.argmin(mae_arr)
-        res = [mae_arr[best_idx], mape_arr[best_idx], rmse_arr[best_idx], time_arr[best_idx]]
+        res = np.array(test_time)
+        logger.append_log_file(f'mean_time:{res.mean()}\nstd_time:{res.std()}')
         return res
 
 
@@ -285,10 +178,6 @@ if __name__ == "__main__":
     with open(model_filename, 'r') as f:
         actions = json.loads(f.read())
     print(json.dumps(config, sort_keys=True, indent=4))
-    if args.resume:
-        wandb.init(project="GNN", config=config, resume=args.wandb_id)
-    else:
-        wandb.init(project="GNN", config=config)
     if isinstance(config['ctx'], list):
         ctx = [mx.gpu(i) for i in config['ctx']]
     elif isinstance(config['ctx'], int):
@@ -296,12 +185,7 @@ if __name__ == "__main__":
     else:
         raise Exception("config_ctx error:" + str(config['ctx']))
     config_name = config_filename.replace('./Config/', '').replace("/", "_").split('.')[0] + '_' + \
-                  model_filename.replace('./Config/', '').replace("/", "_").split('.')[0] + '_test'
+                  model_filename.replace('./Config/', '').replace("/", "_").split('.')[0] + '_test_time'
     logger = Logger(config_name, config, args.resume, larger_better=False)
-    res = []
-    for i in range(5):
-        env = TrainEnv(config, ctx, logger)
-        res.append(env.train_model(deepcopy(actions)))
-    res = np.array(res)
-    logger.append_log_file(f'mean:{res.mean(axis=0)}')
-    logger.append_log_file(f'mean:{res.std(axis=0)}')
+    env = TestEnv(config, ctx, logger)
+    env.train_model(deepcopy(actions))

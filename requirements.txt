@@ -1,7 +1,10 @@
-numpy==1.19.0
-gym==0.12.5
-mxnet_cu100==1.5.0
-torch==1.2.0
 scipy==1.4.1
-mxnet==1.6.0
-dill==0.2.5
+mxnet_cu101==1.6.0.post0
+numpy==1.19.0
+dill==0.3.2
+gym==0.12.5
+torch==1.2.0
+matplotlib==3.3.2
+mxnet==1.7.0.post1
+pandas==1.1.2
+seaborn==0.11.0

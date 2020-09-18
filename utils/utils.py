@@ -146,11 +146,11 @@ def construct_adj(A, steps):
     return adj
 
 
-def generate_from_train_val_test(data, transformer):
+def generate_from_train_val_test(data, train_length, pred_length, transformer):
     mean = None
     std = None
     for key in ('train', 'val', 'test'):
-        x, y = generate_seq(data[key], 12, 12)
+        x, y = generate_seq(data[key], train_length, pred_length)
         if transformer:
             x = transformer(x=x)
             y = transformer(y=y)
@@ -163,14 +163,14 @@ def generate_from_train_val_test(data, transformer):
             yield (x - mean) / std, y
 
 
-def generate_from_data(data, length, transformer):
+def generate_from_data(data, length, train_length, pred_length, split_ratio: list, transformer):
     mean = None
     std = None
-    train_line, val_line = int(length * 0.6), int(length * 0.8)
+    train_line, val_line = int(length * split_ratio[0]), int(length * split_ratio[1])
     for line1, line2 in ((0, train_line),
                          (train_line, val_line),
                          (val_line, length)):
-        x, y = generate_seq(data['data'][line1: line2], 12, 12)
+        x, y = generate_seq(data['data'][line1: line2], train_length, pred_length)
         if transformer:
             x = transformer(x=x)
             y = transformer(y=y)
@@ -183,24 +183,27 @@ def generate_from_data(data, length, transformer):
             yield (x - mean) / std, y
 
 
-def generate_data(graph_signal_matrix_filename, transformer=None):
+def generate_data(graph_signal_matrix_filename, train_length=12, pred_length=12, split_ratio=None,
+                  transformer=None):
     '''
     shape is (num_of_samples, 12, num_of_vertices, 1)
     '''
+    if split_ratio is None:
+        split_ratio = [0.6, 0.8]
     data = np.load(graph_signal_matrix_filename)
     keys = data.keys()
     if transformer is not None:
-        x_min = generate_seq(data['data'], 12, 12)[0].min()
-        x_max = generate_seq(data['data'], 12, 12)[0].max()
-        y_min = generate_seq(data['data'], 12, 12)[1].min()
-        y_max = generate_seq(data['data'], 12, 12)[1].max()
+        x_min = generate_seq(data['data'], train_length, pred_length)[0].min()
+        x_max = generate_seq(data['data'], train_length, pred_length)[0].max()
+        y_min = generate_seq(data['data'], train_length, pred_length)[1].min()
+        y_max = generate_seq(data['data'], train_length, pred_length)[1].max()
         transformer.set_data_set_info(x_min=x_min, x_max=x_max, y_min=y_min, y_max=y_max)
     if 'train' in keys and 'val' in keys and 'test' in keys:
-        for i in generate_from_train_val_test(data, transformer):
+        for i in generate_from_train_val_test(data, train_length, pred_length, transformer):
             yield i
     elif 'data' in keys:
         length = data['data'].shape[0]
-        for i in generate_from_data(data, length, transformer):
+        for i in generate_from_data(data, length, train_length, pred_length, split_ratio, transformer):
             yield i
     else:
         raise KeyError("neither data nor train, val, test is in the data")
@@ -214,137 +217,70 @@ def generate_seq(data, train_length, pred_length):
     return np.split(seq, 2, axis=1)
 
 
-def generate_action(state, n, training_stage_last):
+def generate_action(state, n):
     action_list = []
-    if training_stage_last:
-        if state == -1:
-            # input state (last state): state{-1}
-            for i in range(1, 3):
-                for j in range(1, 3):
-                    for k in range(1, 4):
-                        for l in range(1, 3):
-                            action_list.append([i, j, k, l, 0])
-            return np.array(action_list)
-        elif 0 <= state < n:
-            # last state{0}-{n-1}
-            #      block{1}-{n}
-            for i in range(1, 5):
-                for j in range(1, 4):
-                    for k in range(1, 5):
-                        for l in range(0, state + 1):
-                            if i == 0:
-                                action_list.append([i, j, k, l, 0])
-                            else:
-                                # may be terminal action
-                                for m in range(0, 2):
-                                    action_list.append([i, j, k, l, m])
-            return np.array(action_list)
-        elif state == n:
-            # training stage
-            # last state{n} or dqn gave terminal action
-            for i in range(1, 3):
-                for j in range(1, 4):
-                    for k in range(1, 4):
-                        for l in range(1, 4):
-                            action_list.append([i, j, k, l, 0])
-            return np.array(action_list)
-        else:
-            raise Exception(f"Error state:{state}, n:{n}, training_stage_last:{training_stage_last}")
-    else:
-        if state == -2:
-            # last state{-2}
-            # training stage
-            for i in range(1, 3):
-                for j in range(1, 4):
-                    for k in range(1, 4):
-                        for l in range(1, 4):
-                            action_list.append([i, j, k, l])
-            return np.array(action_list)
-        elif state == -1:
-            # last state{-1}
-            for i in range(1, 3):
-                for j in range(1, 3):
-                    for k in range(1, 4):
-                        for l in range(1, 2):
-                            action_list.append([i, j, k, l])
-            return np.array(action_list)
-        elif 0 <= state < n:
-            # may be terminal action
-            if state != 0:
-                action_list.append([-1, -1, -1, -1])
-            for i in range(1, 5):
-                for j in range(1, 4):
-                    for k in range(1, 5):
-                        for l in range(0, state + 1):
-                            action_list.append([i, j, k, l])
-            return np.array(action_list)
-        else:
-            raise Exception(f"Error state:{state}, n:{n}, training_stage_last:{training_stage_last}")
-
-
-def generate_action_dict(n, training_stage_last):
-    action_dict = {}
-    if training_stage_last:
-        # input state (last state): state{-1}
-        action_dict[-1] = generate_action(-1, n, training_stage_last)
-        # last state{0}-{n-1}
-        #      block{1}-{n}
-        for state in range(0, n):
-            action_dict[state] = generate_action(state, n, training_stage_last)
-        # training stage
-        # last state{n} or dqn gave terminal action
-        action_dict[n] = generate_action(n, n, training_stage_last)
-    else:
+    if state == -2:
         # last state{-2}
-        action_dict[-2] = generate_action(-2, n, training_stage_last)
-        # last state{-1}
         # training stage
-        action_dict[-1] = generate_action(-1, n, training_stage_last)
-        # last state{0}-{n-1}
-        #      block{1}-{n}
-        for state in range(0, n):
-            action_dict[state] = generate_action(state, n, training_stage_last)
+        for i in range(1, 3):
+            for j in range(1, 4):
+                for k in range(1, 4):
+                    for l in range(1, 4):
+                        action_list.append([i, j, k, l])
+        return np.array(action_list)
+    elif state == -1:
+        # last state{-1}
+        for i in range(1, 3):
+            for j in range(1, 3):
+                for k in range(1, 4):
+                    for l in range(1, 2):
+                        action_list.append([i, j, k, l])
+        return np.array(action_list)
+    elif 0 <= state < n:
+        # may be terminal action
+        if state != 0:
+            action_list.append([-1, -1, -1, -1])
+        for i in range(1, 5):
+            for j in range(1, 4):
+                for k in range(1, 5):
+                    for l in range(0, state + 1):
+                        action_list.append([i, j, k, l])
+        return np.array(action_list)
+    else:
+        raise Exception(f"Error state:{state}, n:{n}")
+
+
+def generate_action_dict(n):
+    action_dict = {}
+    # last state{-2}
+    action_dict[-2] = generate_action(-2, n)
+    # last state{-1}
+    # training stage
+    action_dict[-1] = generate_action(-1, n)
+    # last state{0}-{n-1}
+    #      block{1}-{n}
+    for state in range(0, n):
+        action_dict[state] = generate_action(state, n)
     return action_dict
 
 
-def generate_random_action(obs, n, training_stage_last):
-    if training_stage_last:
-        last_state = obs[-1, 0]
-        if last_state == -1:
-            return np.array([np.random.randint(low=1, high=3),
-                             np.random.randint(low=1, high=4),
-                             np.random.randint(low=1, high=4),
-                             np.random.randint(low=1, high=3),
-                             0])
-        elif last_state <= n - 1 and (obs[-1, 1:] != [-1, -1, -1, -1]).all():
+def generate_random_action(obs, n):
+    last_state = obs[0]
+    if last_state == -2:
+        return np.array([np.random.randint(low=1, high=3),
+                         np.random.randint(low=1, high=4),
+                         np.random.randint(low=1, high=4),
+                         np.random.randint(low=1, high=4)])
+    elif last_state == -1:
+        return np.array([np.random.randint(low=1, high=3),
+                         np.random.randint(low=1, high=3),
+                         np.random.randint(low=1, high=4),
+                         np.random.randint(low=1, high=3)])
+    else:
+        if np.random.randint(low=0, high=2) == 0 or last_state == 0:
             return np.array([np.random.randint(low=1, high=5),
                              np.random.randint(low=1, high=4),
                              np.random.randint(low=1, high=5),
-                             np.random.randint(low=0, high=last_state + 1),
-                             np.random.randint(low=0, high=2)])
+                             np.random.randint(low=0, high=last_state + 1)])
         else:
-            return np.array([np.random.randint(low=1, high=3),
-                             np.random.randint(low=1, high=4),
-                             np.random.randint(low=1, high=4),
-                             np.random.randint(low=1, high=4),
-                             0])
-    else:
-        last_state = obs[0]
-        if last_state == -2:
-            return np.array([np.random.randint(low=1, high=3),
-                             np.random.randint(low=1, high=4),
-                             np.random.randint(low=1, high=4),
-                             np.random.randint(low=1, high=4)])
-        elif last_state == -1:
-            return np.array([np.random.randint(low=1, high=3),
-                             np.random.randint(low=1, high=3),
-                             np.random.randint(low=1, high=4),
-                             np.random.randint(low=1, high=3)])
-        else:
-            if np.random.randint(low=0, high=2) == 0 or last_state == 0:
-                return np.array([np.random.randint(low=1, high=5),
-                                 np.random.randint(low=1, high=4),
-                                 np.random.randint(low=1, high=5),
-                                 np.random.randint(low=0, high=last_state + 1)])
-            else:
-                return np.array([-1, -1, -1, -1])
+            return np.array([-1, -1, -1, -1])

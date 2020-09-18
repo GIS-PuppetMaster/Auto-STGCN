@@ -12,7 +12,7 @@ import dill
 class Logger:
     def __init__(self, log_name, config, resume, log_path="./Log/", larger_better=True):
         self.episode = 0
-        # data unit: [episode]=[states, actions, train, eval, test, reward, time]
+        # data unit: list[episode]=[states, actions, train, eval, test, reward, time]
         # states: list(list())
         # actions: list(list())
         # train:[epoch, loss, MAE, MAPE, RMSE, Time]
@@ -31,7 +31,6 @@ class Logger:
         if not os.path.exists(self.log_path):
             os.makedirs(self.log_path)
             os.makedirs(self.log_path + "GNN")
-            os.makedirs(self.log_path + "DQN")
         elif not resume:
             raise Exception(f"log_path:{log_path}, log_name:{log_name} already exists")
         pathlib.Path(self.log_path + "logger.log").touch()
@@ -80,13 +79,6 @@ class Logger:
             with open(self.log_path + "GNN/model_structure.txt", "w") as f:
                 f.write(str(model_structure) + "\n")
             print(f'updated GNN params with checkpoint:{self.episode}')
-
-    def save_DQN(self, model):
-        torch.save(model, self.log_path + f"DQN/QNet_{self.episode}")
-
-    def save_buffer(self, buffer):
-        with open(self.log_path + "DQN/buffer.dill", "wb") as f:
-            dill.dump(buffer, f)
 
     def __call__(self, flush=False, *args, **kwargs):
         if "state" in kwargs.keys():

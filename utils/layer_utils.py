@@ -94,15 +94,16 @@ class IS1(HybridBlock):
 
 
 def SIPM1(filepath=None, **kwargs):
-    if filepath is None:
+    if filepath is None or kwargs['phi'] != 0.7:
+        print('calculating Pearson matrix')
         time_series_matrix = kwargs['time_series_matrix']
         num_of_vertices = kwargs['num_of_vertices']
-        epsilon = kwargs['epsilon']
+        phi = kwargs['phi']
         adj_matrix = np.zeros(shape=(int(num_of_vertices), int(num_of_vertices)))
         # construct new adj_matrix with pearson in CIKM paper
         for i in range(time_series_matrix.shape[1]):
             for j in range(time_series_matrix.shape[1]):
-                if pearsonr(time_series_matrix[:, i], time_series_matrix[:, j])[0] > epsilon:
+                if pearsonr(time_series_matrix[:, i], time_series_matrix[:, j])[0] > phi:
                     adj_matrix[i, j] = 1
         return adj_matrix
     else:
@@ -187,7 +188,7 @@ def construct_adj(A):
     if len(A.shape) == 3:
         adj = []
         for i in range(A.shape[0]):
-            A_tmp = A[i,:,:]
+            A_tmp = A[i, :, :]
             diag_matrix = nd.diag(nd.ones_like(A_tmp)[0, :])
             zero_matrix = nd.zeros_like(A_tmp)
             A_adj = A_tmp + diag_matrix
@@ -701,13 +702,13 @@ class gcn_operation(HybridBlock):
     def forward(self, x, *args):
         adj = args[0]
         data = x
-        if len(adj.shape)==3:
+        if len(adj.shape) == 3:
             # (B,3N,C)
-            data = data.transpose((1,0,2))
+            data = data.transpose((1, 0, 2))
             # (B,3N,3N) x (B,3N,C) = (B,3N,C)
-            data = nd.batch_dot(adj,data)
+            data = nd.batch_dot(adj, data)
             # (3N,B,C)
-            data = data.transpose((1,0,2))
+            data = data.transpose((1, 0, 2))
         else:
             # shape is (3N, B, C)
             data = nd.dot(adj, data)

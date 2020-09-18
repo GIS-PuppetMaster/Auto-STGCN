@@ -9,11 +9,11 @@ class Model(HybridBlock):
         self.action_trajectory = action_trajectory
 
         self.batch_size = config['batch_size']
-        self.epsilon = config['epsilon']
+        self.phi = config['phi']
         self.num_of_vertices = config['num_of_vertices']
         self.adj_filename = config['adj_filename']
         self.id_filename = config['id_filename']
-        self.module_type = config['module_type']
+        self.module_type = "individual"
         self.n = config['n']
         self.order_of_cheb = 3
         self.config = config
@@ -119,7 +119,7 @@ class Model(HybridBlock):
                         block_unit.append(FES2())
                         self.register_child(block_unit[-1])
                     elif action[2] == 3:
-                        block_unit.append(FES3(self.config['K']))
+                        block_unit.append(FES3(3))
                         self.register_child(block_unit[-1])
                     elif action[2] == 4:
                         block_unit.append(FES4(self.num_of_vertices, [64, 64, 64], self.module_type, 'GLU'))
@@ -159,7 +159,7 @@ class Model(HybridBlock):
                     elif isinstance(layer, FES3):
                         L_tilde = scaled_Laplacian(self.adj_choosed)
                         cheb_polynomials = [nd.array(i)
-                                            for i in cheb_polynomial(L_tilde, self.config['K'])]
+                                            for i in cheb_polynomial(L_tilde, 3)]
                         data = layer(data, cheb_polynomials, self.laplace_weights)
                     elif isinstance(layer, FES4):
                         data = layer(data, self.adj_choosed, self.laplace_weights)

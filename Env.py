@@ -226,8 +226,10 @@ class GNNEnv(gym.Env):
             print(f"    eval_result: loss:{eval_loss_value}, MAE:{mae}, MAPE:{mape}, RMSE:{rmse}, time:{val_time}")
             val_loader.reset()
             # get reward
-            reward = -(mae - np.power(np.e, -19) * np.log2(self.time_max / val_time))
-            if reward < -1e3:
+            reward = -(mae - np.power(np.e, -19) * np.log2(self.time_max - val_time))
+            if np.isinf(reward):
+                return -1000, True
+            elif reward < -1e3:
                 return reward / 100, True
             else:
                 reward /= 100

@@ -50,7 +50,7 @@ class Model(HybridBlock):
                         temp = IS1()
                         self.layer_list[0] = temp
                         self.register_child(temp)
-                    elif action[0]==2:
+                    elif action[0] == 2:
                         self.layer_list[0] = None
                     else:
                         raise Exception(f'IS error, got:{action[0]}, with action_trajectory:{self.action_trajectory}')
@@ -59,14 +59,14 @@ class Model(HybridBlock):
 
                     if action[1] == 1:
                         self.output_structure = OS2(self.filter_size)
-                    elif action[1]==2:
+                    elif action[1] == 2:
                         self.output_structure = OS3(self.num_of_vertices)
                     else:
                         raise Exception(f'OS error, got:{action[1]}, with action_trajectory:{self.action_trajectory}')
 
                     if action[3] == 1:
                         self.MOBF = MOBF1(self.num_of_end_block, self.num_of_vertices)
-                    elif action[3]==2:
+                    elif action[3] == 2:
                         self.MOBF = MOBFEmbedding(self.num_of_end_block, self.num_of_vertices, False)
                     else:
                         raise Exception(f'MOBF error, got:{action[3]}, with action_trajectory:{self.action_trajectory}')

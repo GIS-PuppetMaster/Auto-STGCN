@@ -3,7 +3,7 @@
 import os
 import numpy as np
 import mxnet as mx
-
+import sys
 
 class NoramlTransformer:
     def __init__(self):
@@ -284,3 +284,12 @@ def generate_random_action(obs, n):
                              np.random.randint(low=0, high=last_state + 1)])
         else:
             return np.array([-1, -1, -1, -1])
+
+def is_debug():
+    gettrace = getattr(sys, 'gettrace', None)
+    if gettrace is None:
+        return False
+    elif gettrace():
+        return True
+    else:
+        return False

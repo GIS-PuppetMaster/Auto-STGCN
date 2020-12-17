@@ -425,7 +425,6 @@ class Gconv(HybridBlock):
         ----------
         shape is (batch_size * time_step, num_of_vertices, c_out)
         '''
-        self.batch_size = x.shape[0]
         if spatial_At is not None:
             spatial_At = nd.repeat(spatial_At, repeats=self.order_of_cheb, axis=-1)
             cheb_polys = cheb_polys * spatial_At
@@ -1130,6 +1129,7 @@ class OS1(HybridBlock):
             self.encoder_lstm_cell = DeferredInitLSTMCell(num_of_vertices)
             # 此处只有一个LSTM cell 前向传播时循环多次输出预测的多个时间帧
             self.decoder = mx.gluon.rnn.LSTMCell(num_of_vertices, input_size=num_of_vertices)
+            self.output = mx.gluon.nn.Dense(num_of_vertices, in_units=num_of_vertices)
 
     def forward(self, x, *args):
         global res
@@ -1146,10 +1146,11 @@ class OS1(HybridBlock):
             S_c[0] = nd.array(S_c[0])
             S_c[1] = nd.array(S_c[1])
             S_h, S_c = self.decoder(S_h, S_c)
+            hidden = self.output(S_h)
             if i == 0:
-                res = S_h.expand_dims(axis=1)
+                res = hidden.expand_dims(axis=1)
             else:
-                res = nd.concat(res, S_h.expand_dims(axis=1), dim=1)
+                res = nd.concat(res, hidden.expand_dims(axis=1), dim=1)
         return res
 
 

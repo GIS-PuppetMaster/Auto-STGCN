@@ -9,8 +9,10 @@ from utils.utils import *
 from Model import Model
 from mxnet.lr_scheduler import FactorScheduler
 from utils.layer_utils import *
+import wandb
 from copy import deepcopy
-
+import dill
+import os
 
 class GNNEnv(gym.Env):
     def __init__(self, config, ctx, logger, test=False):
@@ -31,6 +33,7 @@ class GNNEnv(gym.Env):
         self.train_length = config['train_length']
         self.pred_length = config['pred_length']
         self.split_ratio = config['split_ratio']
+        self.mode = config['mode']
         # load data
         self.dataset_name = os.path.split(self.adj_filename)[1].replace(".csv", "")
         time_series_matrix = np.load(self.time_series_filename)['data'][:, :, 0]
@@ -86,6 +89,8 @@ class GNNEnv(gym.Env):
                 self.data[batch_size] = loaders
 
     def step(self, action):
+        if isinstance(action, list):
+            action = np.array(action)
         action = action.squeeze()
         self.actions.append(action.tolist())
         # end ST-block, need training
@@ -99,12 +104,15 @@ class GNNEnv(gym.Env):
             state = np.array([self.current_state_phase] + action.tolist())
             state.astype(np.float32)
             if self.current_state_phase == -1:
-                # training state
+                # training stage
                 self.training_stage_action = action
             else:
                 self.action_trajectory.append(action)
             self.current_state_phase += 1
-            return state, None, False, {"exception_flag": False}
+            if self.mode == 'search':
+                return state, None, False, {"exception_flag": False}
+            else:
+                return None
         else:
             # set the last ST-Block and start training
             # return terminal state
@@ -113,8 +121,12 @@ class GNNEnv(gym.Env):
             if not (action == np.array([-1, -1, -1, -1])).all():
                 self.action_trajectory.append(action)
             self.current_state_phase += 1
-            reward, flag = self.train_model(self.training_stage_action)
-            return state, reward, True, {"exception_flag": flag}
+            if self.mode == 'search':
+                # 输入的training_stage_action不包括[-1,-1,-1,-1]和training stage
+                reward, flag = self.train_model(self.training_stage_action)
+                return state, reward, True, {"exception_flag": flag}
+            else:
+                return self.train_model(self.training_stage_action)
 
     def reset(self):
         self.action_trajectory = []
@@ -132,7 +144,6 @@ class GNNEnv(gym.Env):
             loss = mx.gluon.loss.L2Loss()
         else:
             loss = mx.gluon.loss.HuberLoss()
-
         # must set batch_size before init model
         batch_size = self.batch_size_option[action[1] - 1]
         self.config['batch_size'] = batch_size
@@ -160,87 +171,164 @@ class GNNEnv(gym.Env):
                 warmup_steps=global_train_steps
             )
             opt = mx.gluon.Trainer(model.collect_params(), opt_option[action[3] - 1], {'lr_scheduler': lr_sch})
+        self.logger(action=self.actions)
+        model_structure = deepcopy(self.actions)
         try:
-            # train
-            train_time = 0.
             train_loader, val_loader, test_loader = self.data[batch_size]
-            for epoch in range(self.config['epochs']):
-                loss_value = 0
-                mae = 0
-                rmse = 0
-                mape = 0
-                train_batch_num = 0
-                for X in train_loader:
-                    y = X.label[0]
-                    X = X.data[0]
-                    train_batch_num += 1
-                    X, y = X.as_in_context(self.ctx), y.as_in_context(self.ctx)
-                    with autograd.record():
-                        y = y.astype('float32')
-                        start_time = time()
-                        output = model(X)
-                        train_time += time() - start_time
-                        l = loss(output, y)
-                    if self.test:
-                        return
-                    l.backward()
-                    opt.step(batch_size)
-                    loss_value += loss(output, y).mean().asscalar()
-                    mae += MAE(y, output)
-                    rmse += RMSE(y, output)
-                    mape += masked_mape_np(y, output)
-                train_loader.reset()
-                loss_value /= train_batch_num
-                mae /= train_batch_num
-                rmse /= train_batch_num
-                mape /= train_batch_num
-                self.logger(
-                    train=[epoch, loss_value, mae, mape, rmse, train_time])
-                print(f"    epoch:{epoch} ,loss:{loss_value}")
-            model_structure = deepcopy(self.action_trajectory)
-            model_structure.append(action)
-            # eval
-            eval_loss_value = 0
-            eval_batch_num = 0
-            mae = 0
-            rmse = 0
-            mape = 0
-            val_time = 0.
-            for X in val_loader:
-                y = X.label[0]
-                X = X.data[0]
-                eval_batch_num += 1
-                X, y = X.as_in_context(self.ctx), y.as_in_context(self.ctx)
-                y = y.astype('float32')
-                start_time = time()
-                output = model(X)
-                val_time += time() - start_time
-                eval_loss_value += loss(output, y).mean().asscalar()
-                mae += MAE(y, output)
-                rmse += RMSE(y, output)
-                mape += masked_mape_np(y, output)
-            eval_loss_value /= eval_batch_num
-            mae /= eval_batch_num
-            rmse /= eval_batch_num
-            mape /= eval_batch_num
-            print(f"    eval_result: loss:{eval_loss_value}, MAE:{mae}, MAPE:{mape}, RMSE:{rmse}, time:{val_time}")
-            val_loader.reset()
-            # get reward
-            reward = -(mae - np.power(np.e, -19) * np.log2(self.time_max - val_time))
-            if np.isinf(reward):
-                return -1000, True
-            elif reward < -1e3:
-                return reward / 100, True
-            else:
-                reward /= 100
-            self.logger(eval=[eval_loss_value, mae, mape, rmse, val_time])
-            self.logger.save_GNN(model, model_structure, reward / len(self.action_trajectory) + 1)
-            return reward, False
+            if self.mode == 'search' or self.mode == 'train':
+                # train
+                train_time = 0.
+                best_mae = float('inf')
+                best_epoch = 0
+                best_test_mae = float('inf')
+                best_test_res = None
+                for epoch in range(self.config['epochs']):
+                    loss_value = 0
+                    mae = 0
+                    rmse = 0
+                    mape = 0
+                    train_batch_num = 0
+                    for X in train_loader:
+                        y = X.label[0]
+                        X = X.data[0]
+                        train_batch_num += 1
+                        X, y = X.as_in_context(self.ctx), y.as_in_context(self.ctx)
+                        with autograd.record():
+                            y = y.astype('float32')
+                            start_time = time()
+                            output = model(X)
+                            train_time += time() - start_time
+                            l = loss(output, y)
+                        # if self.test:
+                        #     return
+                        l.backward()
+                        opt.step(batch_size)
+                        loss_value += loss(output, y).mean().asscalar()
+                        mae += MAE(y, output)
+                        rmse += RMSE(y, output)
+                        mape += masked_mape_np(y, output)
+                    train_loader.reset()
+                    loss_value /= train_batch_num
+                    mae /= train_batch_num
+                    rmse /= train_batch_num
+                    mape /= train_batch_num
+                    self.logger(
+                        train=[epoch, loss_value, mae, mape, rmse, train_time])
+                    print(f"    epoch:{epoch} ,loss:{loss_value}")
+                    if self.mode == 'train':
+                        eval_loss_value, mae, rmse, mape, val_time = self.eval_model(val_loader, model, loss)
+                        self.logger(eval=[eval_loss_value, mae, mape, rmse, val_time])
+                        self.logger.save_GNN(model, model_structure, mae)
+                        if mae < best_mae:
+                            best_mae = mae
+                            best_epoch = epoch
+                        if epoch - best_epoch > 10:
+                            print(f'early stop at epoch:{epoch}')
+                            break
+                        mae, mape, rmse, test_time = self.test_model_without_load(test_loader, model, loss)
+                        if mae < best_test_mae:
+                            best_test_mae = mae
+                            best_test_res = [mae, mape, rmse, test_time]
+                        print(f'test_res:{best_test_res}')
+            if self.mode == 'search':
+                eval_loss_value, mae, rmse, mape, val_time = self.eval_model(val_loader, model, loss)
+                # get reward
+                if self.time_max - val_time > 0:
+                    reward = -mae / 10 + np.power(np.e, -5) * np.log2(self.time_max - val_time)
+                else:
+                    reward = -10
+                if np.isnan(reward) or np.isinf(reward) or reward < -100:
+                    self.logger.append_log_file(f"Warning: reward={reward}")
+                    reward = -10
+                self.logger(eval=[eval_loss_value, mae, mape, rmse, val_time])
+                self.logger.save_GNN(model, model_structure, reward / len(self.action_trajectory) + 1)
+                return reward, False
+            elif self.mode == 'train':
+                self.logger.append_log_file(f'best_test_res:{best_test_res}')
+                mae, mape, rmse, test_time = self.test_model(test_loader, loss)
+                return best_test_res, [mae, mape, rmse, test_time]
+            elif self.mode == 'test':
+                mae, mape, rmse, test_time = self.test_model(test_loader, loss)
+                return None, [mae, mape, rmse, test_time]
+
         except Exception as e:
             self.logger.append_log_file(e.args[0])
             self.logger(train=None, eval=None, test=None)
             traceback.print_exc()
-            return -1000, True
+            return -10, True
+
+    def eval_model(self, val_loader, model, loss):
+        eval_loss_value = 0
+        eval_batch_num = 0
+        mae = 0
+        rmse = 0
+        mape = 0
+        val_time = 0.
+        for X in val_loader:
+            y = X.label[0]
+            X = X.data[0]
+            eval_batch_num += 1
+            X, y = X.as_in_context(self.ctx), y.as_in_context(self.ctx)
+            y = y.astype('float32')
+            start_time = time()
+            output = model(X)
+            val_time += time() - start_time
+            eval_loss_value += loss(output, y).mean().asscalar()
+            mae += MAE(y, output)
+            rmse += RMSE(y, output)
+            mape += masked_mape_np(y, output)
+        eval_loss_value /= eval_batch_num
+        mae /= eval_batch_num
+        rmse /= eval_batch_num
+        mape /= eval_batch_num
+        print(f"    eval_result: loss:{eval_loss_value}, MAE:{mae}, MAPE:{mape}, RMSE:{rmse}, time:{val_time}")
+        val_loader.reset()
+        return eval_loss_value, mae, rmse, mape, val_time
+
+    def test_model(self, test_loader, loss):
+        # load best eval metric model or the model described in args.load
+        if 'load' in self.config.keys() and self.config['load'] is not None:
+            with open(self.config['load'],'rb') as f:
+                model = dill.load(f)
+            # model.load_parameters(self.config['load'], ctx=self.ctx)
+        else:
+            with open(self.logger.log_path + f"GNN/best_GNN_model.params",'rb') as f:
+                model = dill.load(f)
+            # model.load_parameters(self.logger.log_path + f"GNN/best_GNN_model.params", ctx=self.ctx)
+        return self.test_model_without_load(test_loader, model, loss)
+
+    def test_model_without_load(self, test_loader, model, loss):
+        # test model
+        test_loss_value = 0
+        test_batch_num = 0
+        mae = 0
+        rmse = 0
+        mape = 0
+        test_time = 0.
+        for X in test_loader:
+            y = X.label[0]
+            X = X.data[0]
+            test_batch_num += 1
+            X, y = X.as_in_context(self.ctx), y.as_in_context(self.ctx)
+            y = y.astype('float32')
+            start_time = time()
+            output = model(X)
+            test_time += time() - start_time
+            # test_loss_value_raw += loss(output, y).mean().asscalar()
+            test_loss_value += loss(output, y).mean().asscalar()
+            mae += MAE(y, output)
+            rmse += RMSE(y, output)
+            mape += masked_mape_np(y, output)
+        test_loss_value /= test_batch_num
+        mae /= test_batch_num
+        rmse /= test_batch_num
+        mape /= test_batch_num
+        test_loader.reset()
+        print(f"    test_result: loss:{test_loss_value}, MAE:{mae}, MAPE:{mape}, RMSE:{rmse}, TIME:{test_time}")
+        self.logger(test=[test_loss_value, mae, mape, rmse, test_time])
+        self.logger.update_data_units()
+        self.logger.flush_log()
+        return mae, mape, rmse, test_time
 
     def render(self, mode='human'):
         pass

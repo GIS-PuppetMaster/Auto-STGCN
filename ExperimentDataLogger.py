@@ -11,6 +11,10 @@ import dill
 
 class Logger:
     def __init__(self, log_name, config, resume, log_path="./Log/", larger_better=True):
+        if larger_better:
+            assert config['mode'] == 'search'
+        else:
+            assert config['mode'] == 'train' or 'test'
         self.episode = 0
         # data unit: list[episode]=[states, actions, train, eval, test, reward, time]
         # states: list(list())
@@ -23,10 +27,7 @@ class Logger:
         self.data_unit = []
         self.data_buffer = [[], [], [], [], [], [], None]
         self.larger_better = larger_better
-        if larger_better:
-            self.metric = -float("inf")
-        else:
-            self.metric = float("inf")
+        self.reset_metric()
         self.config = config
         if not os.path.exists(self.log_path):
             os.makedirs(self.log_path)
@@ -38,6 +39,12 @@ class Logger:
         with open(self.log_path + "config.json", "w") as f:
             json.dump(config, f)
 
+    def reset_metric(self):
+        if self.larger_better:
+            self.metric = -float("inf")
+        else:
+            self.metric = float("inf")
+
     def update_data_units(self):
         self.data_unit.append(self.data_buffer)
 
@@ -46,6 +53,12 @@ class Logger:
         self.data_buffer = [[], [], [], [], [], [], None]
         with open(self.log_path + "logger.log", "a") as f:
             f.write(f"episode {episode}:\n")
+
+    def plus_episode(self):
+        self.episode += 1
+        self.data_buffer = [[], [], [], [], [], [], None]
+        with open(self.log_path + "logger.log", "a") as f:
+            f.write(f"episode {self.episode}:\n")
 
     def flush_log(self):
         with open(self.log_path + "logger.pkl", "wb") as f:
@@ -63,22 +76,27 @@ class Logger:
         return x
 
     def append_log_file(self, string):
+        print(string)
         with open(self.log_path + "logger.log", "a") as f:
             f.write(string + "\n")
 
     def save_GNN(self, model, model_structure, metric):
+        model_structure = list(map(lambda x: x.tolist() if isinstance(x, np.ndarray) else x, model_structure))
         # only save model when get a ner best model
         if (self.larger_better and metric > self.metric) or (not self.larger_better and metric < self.metric):
-            model.save_parameters(self.log_path + f"GNN/best_GNN_model.params")
+            with open(self.log_path + f"GNN/best_GNN_model.params",'wb') as f:
+                dill.dump(model, f)
+            # model.save_parameters(self.log_path + f"GNN/best_GNN_model.params")
+            # model.collect_params().save(self.log_path + f"GNN/best_GNN_model.params")
             with open(self.log_path + "GNN/model_structure.txt", "w") as f:
                 f.write(str(model_structure) + "\n")
             self.metric = metric
-            print('updated best GNN params')
-        if self.episode % 10 == 0:
-            model.save_parameters(self.log_path + f"GNN/GNN_model_{self.episode}.params")
-            with open(self.log_path + "GNN/model_structure.txt", "w") as f:
-                f.write(str(model_structure) + "\n")
-            print(f'updated GNN params with checkpoint:{self.episode}')
+            self.append_log_file('updated best GNN params')
+        # if self.episode % 10 == 0:
+        #     model.save_parameters(self.log_path + f"GNN/GNN_model_{self.episode}.params")
+        #     with open(self.log_path + "GNN/model_structure.txt", "w") as f:
+        #         f.write(str(model_structure) + "\n")
+        #     print(f'updated GNN params with checkpoint:{self.episode}')
 
     def __call__(self, flush=False, *args, **kwargs):
         if "state" in kwargs.keys():

@@ -11,6 +11,7 @@ import os
 from copy import *
 import wandb
 
+
 class QTable:
     def __init__(self, config):
         self.n = config['n']
@@ -32,8 +33,9 @@ class QTable:
         Q_values = []
         actions = self.actions[state[0]]
         for action in actions:
-            action = tuple(action.tolist())
-            Q_values.append(self.get_Q_value(state, action))
+            if state[0] <=-1 or (state[0] >= 0 and action[-1] == state):
+                action = tuple(action.tolist())
+                Q_values.append(self.get_Q_value(state, action))
         Q_values = np.array(Q_values)
         Q_value = np.max(Q_values)
         action = np.array(list(actions[np.argmax(Q_values)]))

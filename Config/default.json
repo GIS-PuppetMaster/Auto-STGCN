@@ -7,7 +7,7 @@
     "train_length": 12,
     "pred_length": 12 ,
     "split_ratio": [0.6, 0.8],
-    "time_max": 8.850949,
+    "time_max": 26.750652532,
     "phi": 0.7,
     "epochs":5,
     "epsilon_initial": 0.9,
@@ -15,8 +15,9 @@
     "epsilon_decay_ratio": 0.9999,
     "gamma": 0.9,
     "lr": 1e-3,
-    "episodes": 10000,
+    "episodes": 2000,
     "times": 5,
     "n": 4,
-    "ctx": 0
+    "ctx": 0,
+    "mode": "search"
 }

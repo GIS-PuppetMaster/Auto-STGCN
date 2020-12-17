@@ -11,12 +11,14 @@ import os
 from copy import *
 import wandb
 
+
 class QTable:
     def __init__(self, config):
         self.n = config['n']
         # key: tuple, state value: dict:key:tuple, with all possible actions, values:Q_values
         self.Qtable = defaultdict(lambda: defaultdict(lambda: 0.0))
         self.actions = generate_action_dict(self.n)
+        self.block_bound = None
 
     def get_Q_value(self, state, action):
         if isinstance(state, np.ndarray):
@@ -32,11 +34,15 @@ class QTable:
         Q_values = []
         actions = self.actions[state[0]]
         for action in actions:
-            action = tuple(action.tolist())
-            Q_values.append(self.get_Q_value(state, action))
+            if state[0] <= 0 or (state[0] > 0 and ((action[:-1] == self.block_bound).all() or (action == [-1, -1, -1, -1])).all()):
+                action = tuple(action.tolist())
+                Q_values.append(self.get_Q_value(state, action))
         Q_values = np.array(Q_values)
         Q_value = np.max(Q_values)
         action = np.array(list(actions[np.argmax(Q_values)]))
+        # the first ST-Block, record its structure
+        if state[0] == 0:
+            self.block_bound = action[:-1]
         return action, Q_value
 
     def set_Q_value(self, state, action, value):
@@ -190,6 +196,9 @@ if __name__ == "__main__":
     config.update(arg_dict)
 
     print(json.dumps(config, sort_keys=True, indent=4))
-    log_name = input('log_name:\n')
+    if not is_debug():
+        log_name = input('log_name:\n')
+    else:
+        log_name = 'debug'
     wandb.init(project="GNN2", config=config, notes=log_name)
     train_QTable(config, log_name)

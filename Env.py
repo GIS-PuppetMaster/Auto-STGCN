@@ -258,6 +258,7 @@ class GNNEnv(gym.Env):
             return -10, True
 
     def eval_model(self, val_loader, model, loss):
+        val_loader.reset()
         eval_loss_value = 0
         eval_batch_num = 0
         mae = 0
@@ -281,8 +282,7 @@ class GNNEnv(gym.Env):
         mae /= eval_batch_num
         rmse /= eval_batch_num
         mape /= eval_batch_num
-        print(f"    eval_result: loss:{eval_loss_value}, MAE:{mae}, MAPE:{mape}, RMSE:{rmse}, time:{val_time}")
-        val_loader.reset()
+        print(f"    eval_result: loss:{eval_loss_value}, MAE:{mae}, MAPE:{mape}, RMSE:{rmse}, TIME:{val_time}")
         return eval_loss_value, mae, rmse, mape, val_time
 
     def test_model(self, test_loader, loss):
@@ -299,6 +299,7 @@ class GNNEnv(gym.Env):
 
     def test_model_without_load(self, test_loader, model, loss):
         # test model
+        test_loader.reset()
         test_loss_value = 0
         test_batch_num = 0
         mae = 0
@@ -323,7 +324,6 @@ class GNNEnv(gym.Env):
         mae /= test_batch_num
         rmse /= test_batch_num
         mape /= test_batch_num
-        test_loader.reset()
         print(f"    test_result: loss:{test_loss_value}, MAE:{mae}, MAPE:{mape}, RMSE:{rmse}, TIME:{test_time}")
         self.logger(test=[test_loss_value, mae, mape, rmse, test_time])
         self.logger.update_data_units()

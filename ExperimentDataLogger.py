@@ -86,6 +86,7 @@ class Logger:
         if (self.larger_better and metric > self.metric) or (not self.larger_better and metric < self.metric):
             with open(self.log_path + f"GNN/best_GNN_model.params",'wb') as f:
                 dill.dump(model, f)
+            # this 'save/load_parameters' way seems have some bug on my mxnet environment, can achieve the same MAE after load, so used dill to dump the model finally, can achieve the same MAE after load
             # model.save_parameters(self.log_path + f"GNN/best_GNN_model.params")
             # model.collect_params().save(self.log_path + f"GNN/best_GNN_model.params")
             with open(self.log_path + "GNN/model_structure.txt", "w") as f:

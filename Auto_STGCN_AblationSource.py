@@ -11,6 +11,7 @@ import os
 from copy import *
 import wandb
 
+
 class QTable:
     def __init__(self, config):
         self.n = config['n']
@@ -32,7 +33,8 @@ class QTable:
         Q_values = []
         actions = self.actions[state[0]]
         for action in actions:
-            if (state[0]==-2 and (action[:-1]==[1,3,3,2]).all()) or (state[0]==-1 and (action[:-2]==[2,1]).all()) or (state[0]>=0 and ((action[:-1]==[2,1,3]).all() or (action==[-1,-1,-1,-1])).all()):
+            if (state[0] == -2 and (action[:-1] == [1, 3, 3, 2]).all()) or (state[0] == -1 and (action[:-2] == [2, 1]).all()) or (
+                    state[0] >= 0 and ((action[:-1] == [2, 1, 3]).all() or (action == [-1, -1, -1, -1])).all()):
                 action = tuple(action.tolist())
                 Q_values.append(self.get_Q_value(state, action))
         Q_values = np.array(Q_values)
@@ -95,6 +97,12 @@ def train_QTable(config, log_name):
                 print(f"state:\n{obs}\naction:{action}    QTable")
             else:
                 action = generate_random_action(obs, n)
+                if obs[0] == -2:
+                    action = np.array([1, 3, 3, 2])
+                elif obs[0] == -1:
+                    action[:-2] = [2, 1]
+                elif obs[0] >= 0 and (action != [-1, -1, -1, -1]).all():
+                    action[:-1] = [2, 1, 3]
                 print(f"state:\n{obs}\naction:{action}    random")
             # s{-1}-S{T}, T<=n
             # => len(local_buffer)<= T+2

@@ -110,19 +110,15 @@ if __name__ == "__main__":
     res = np.array(res)
     print('test set metric: MAE, MAPE, RMSE, TIME')
     logger.append_log_file(f'test set mean:{res.mean(axis=0)}')
-    # print(f'test set mean:{res.mean(axis=0)}')
     logger.append_log_file(f'test set std:{res.std(axis=0)}')
-    # print(f'test set std:{res.std(axis=0)}')
 
     res_in_train = np.array(res_in_train)
     print('test in train set metric: MAE, MAPE, RMSE, TIME')
     logger.append_log_file(f'test in train mean:{res_in_train.mean(axis=0)}')
-    # print(f'test_in_train mean:{res_in_train.mean(axis=0)}')
     logger.append_log_file(f'test in train std:{res_in_train.std(axis=0)}')
-    # print(f'test_in_train std:{res_in_train.std(axis=0)}')
 
     with open('./Config/mail.json', 'r') as f:
         mail = json.load(f)
-    yagmail.SMTP(user=mail['user'], password=mail['password'], host='smtp.qq.com')
-    yagmail.send(to=mail['user'], subject=f'Experiment {logger.log_name} is finished',
+    yag = yagmail.SMTP(user=mail['user'], password=mail['password'], host='smtp.qq.com')
+    yag.send(to=mail['user'], subject=f'Experiment {logger.log_name} is finished',
                  contents=[f'test set mean:{res.mean(axis=0)}', f'test set std:{res.std(axis=0)}', f'test in train mean:{res_in_train.mean(axis=0)}', f'test in train std:{res_in_train.std(axis=0)}'])

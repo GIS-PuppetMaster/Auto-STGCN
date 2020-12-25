@@ -96,6 +96,8 @@ def train_QTable(config, log_name):
                 print(f"state:\n{obs}\naction:{action}    QTable")
             else:
                 action = generate_random_action(obs, n)
+                if obs[0] == -2:
+                    action = np.array([1, 3, 3, 2])
                 print(f"state:\n{obs}\naction:{action}    random")
             # s{-1}-S{T}, T<=n
             # => len(local_buffer)<= T+2

@@ -11,6 +11,8 @@ import os
 from copy import *
 import wandb
 
+block_bound = None
+
 
 class QTable:
     def __init__(self, config):
@@ -34,15 +36,14 @@ class QTable:
         Q_values = []
         actions = self.actions[state[0]]
         for action in actions:
-            if state[0] <= 0 or (state[0] > 0 and ((action[:-1] == self.block_bound).all() or (action == [-1, -1, -1, -1])).all()):
+            if state[0] <= 0 or (state[0] > 0 and ((action[:-1] == block_bound).all() or (action == [-1, -1, -1, -1])).all()):
                 action = tuple(action.tolist())
                 Q_values.append(self.get_Q_value(state, action))
         Q_values = np.array(Q_values)
         Q_value = np.max(Q_values)
         action = np.array(list(actions[np.argmax(Q_values)]))
-        # the first ST-Block, record its structure
-        if state[0] == 0:
-            self.block_bound = action[:-1]
+        # if state[0] == 0:
+        #     self.block_bound = action[:-1]
         return action, Q_value
 
     def set_Q_value(self, state, action, value):
@@ -100,7 +101,12 @@ def train_QTable(config, log_name):
                 print(f"state:\n{obs}\naction:{action}    QTable")
             else:
                 action = generate_random_action(obs, n)
+                if obs[0] > 0 and (action != [-1, -1, -1, -1]).all():
+                    action[:-1] = block_bound
                 print(f"state:\n{obs}\naction:{action}    random")
+            # the first ST-Block, record its structure
+            if obs[0] == 0:
+                block_bound = action[:-1]
             # s{-1}-S{T}, T<=n
             # => len(local_buffer)<= T+2
             logger(state=obs, action=action)

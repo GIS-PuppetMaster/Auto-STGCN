@@ -33,8 +33,8 @@ class QTable:
         Q_values = []
         actions = self.actions[state[0]]
         for action in actions:
-            if (state[0] == -2 and (action[:-1] == [1, 3, 3, 2]).all()) or (state[0] == -1 and (action[:-2] == [2, 1]).all()) or (
-                    state[0] >= 0 and ((action[:-1] == [2, 1, 3]).all() or (action == [-1, -1, -1, -1])).all()):
+            if (state[0] == -2 and (action == [1, 3, 3, 2]).all()) or (state[0] == -1 and (action[:-2] == [2, 1]).all()) or (
+                    state[0] >= 0 and ((action[:-1] == [2, 1, 3]).all() or (action == [-1, -1, -1, -1]).all())):
                 action = tuple(action.tolist())
                 Q_values.append(self.get_Q_value(state, action))
         Q_values = np.array(Q_values)

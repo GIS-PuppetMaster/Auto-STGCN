@@ -33,7 +33,7 @@ class QTable:
         Q_values = []
         actions = self.actions[state[0]]
         for action in actions:
-            if state[0] <=-1 or (0 <= state[0] == action[-1]):
+            if state[0] <= -1 or (0 <= state[0] == action[-1] and (action != [-1, -1, -1, -1]).any()):
                 action = tuple(action.tolist())
                 Q_values.append(self.get_Q_value(state, action))
         Q_values = np.array(Q_values)
@@ -96,7 +96,7 @@ def train_QTable(config, log_name):
                 print(f"state:\n{obs}\naction:{action}    QTable")
             else:
                 action = generate_random_action(obs, n)
-                if obs[0] >= 0:
+                if obs[0] >= 0 and (action != [-1, -1, -1, -1]).any():
                     action[-1] = obs[0]
                 print(f"state:\n{obs}\naction:{action}    random")
             # s{-1}-S{T}, T<=n
